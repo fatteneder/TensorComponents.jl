@@ -1,0 +1,9 @@
+name = "TensorComponents"
+uuid = "7e5ae644-7a97-4144-bac8-7d3070b83359"
+authors = ["florian "]
+version = "0.1.0"
+
+[deps]
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+SymEngine = "123dc426-2d89-5057-bbad-38513e3affd8"
+TensorOperations = "6aa20fa7-93e2-5fca-9bc0-fbd0db3c71a2"
