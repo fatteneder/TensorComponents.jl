@@ -7,6 +7,8 @@ struct Index
     end
 end
 
+Base.view(t::AbstractArray, idxs::Index...) = view(t.t, (i.rng for i in idxs)...)
+
 # macro indices(expr)
 #     return esc(indices(expr))
 # end
