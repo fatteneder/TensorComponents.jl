@@ -11,6 +11,7 @@ include("index.jl")
 include("symbolictensor.jl")
 include("components.jl")
 
-export @components, @expand, SymbolicTensor
+export @components, @expand, SymbolicTensor, @collect, Rule,
+       symmetrize!, antisymmetrize!
 
 end # module TensorComponents
