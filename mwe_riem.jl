@@ -65,12 +65,13 @@ function test_topological_sort()
 end
 
 
-function resolve_dependents(tensor, equation; debug=false)
+function extract_coefficient_matrix(equation, tensor)
 
-    v_tensor = tensor[:]
-    v_equation = equation[:]
+    coeffs = zeros(Rational, length(equation), length(tensor))
 
-    coeffs = zeros(Rational, length(equation), length(v_tensor))
+    v_equation = view(equation, :)
+    v_tensor = view(tensor, :)
+
     for (row, eq) in enumerate(v_equation)
         free_syms = SymEngine.free_symbols(eq)
         for (col, t) in enumerate(v_tensor)
@@ -87,6 +88,33 @@ function resolve_dependents(tensor, equation; debug=false)
         end
     end
 
+    return coeffs
+end
+
+
+function resolve_dependents(tensor, equation; debug=false)
+
+    v_tensor = tensor[:]
+    v_equation = equation[:]
+
+    coeffs = extract_coefficient_matrix(equation, tensor)
+    # coeffs = zeros(Rational, length(equation), length(v_tensor))
+    # for (row, eq) in enumerate(v_equation)
+    #     free_syms = SymEngine.free_symbols(eq)
+    #     for (col, t) in enumerate(v_tensor)
+    #         if t == 0 || !(t in free_syms)
+    #             continue
+    #         end
+    #         coeff = SymEngine.coeff(eq, t)
+    #         if length(SymEngine.free_symbols(coeff)) > 0
+    #             # TODO How to check for polynomials?
+    #             # e.g. x + x^2 will slip through here
+    #             error("Rules must be linear!")
+    #         end
+    #         coeffs[row, col] = coeff
+    #     end
+    # end
+
     # number of linear independent equations to consider for
     # determining dependent components
     rk = rank(coeffs)
@@ -96,9 +124,16 @@ function resolve_dependents(tensor, equation; debug=false)
     end
 
     # reduce coeff matrix to row echelon form
+    # TODO This is currently the bottleneck, because it basically performs
+    # Gaussian eliminate which scales as N^3.
+    # Could one use LUP decomposition to speed things up?
     rref!(coeffs)
     echelon_coeffs = convert.(Int64, coeffs)
     red_coeffs = echelon_coeffs[1:rk,:]
+    # somehow does not work ...
+    # _, U, _ = lu(coeffs, check=false)
+    # lindeps = findall(d -> d != 0.0, diag(U))
+    # red_coeffs = coeffs[lindeps,:]
 
     # reassmble equations
     red_eqs = [ dot(v_tensor, row) for row in eachrow(red_coeffs) ]
