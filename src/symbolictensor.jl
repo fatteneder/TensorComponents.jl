@@ -1,176 +1,160 @@
-struct Rule
-    sumedidx::Vector{Int64}
-    freeidx::Vector{Int64}
-    r::Function
+struct SymbolicTensor{N} <: DenseArray{Basic,N}
+    head::Symbol
+    comp::Array{Basic,N}
+    deps::Vector{Basic}
+    ideps::Vector{Basic}
 end
 
-function impose_rule!(a::AbstractArray, rule::Rule)
-    cidxs = CartesianIndices(a)
-    for i = 1:length(a)
-        idxs = cidxs[i]
-        prefactor, r_idxs = rule.r(Tuple(idxs)...)
-        a[r_idxs...] = prefactor * a[Tuple(idxs)...]
-    end
+
+#######################################################################
+#                      Abstract Array Interface                       #
+#######################################################################
+# https://docs.julialang.org/en/v1/manual/interfaces/#man-interface-array
+
+Base.size(t::SymbolicTensor) = size(t.comp)
+Base.getindex(t::SymbolicTensor, i::Int) = t.comp[i]
+Base.getindex(t::SymbolicTensor, I::Vararg{Int,N}) where N = t.comp[I...]
+Base.setindex!(t::SymbolicTensor, v, i::Int) = t.comp[i] = v
+Base.setindex!(t::SymbolicTensor, v, I::Vararg{Int,N}) where N = t.comp[I...] = v
+
+
+#######################################################################
+#                            Constructors                             #
+#######################################################################
+
+
+function SymbolicTensor(head::Symbol, dims::Int64...)
+    all(d -> d > 0, dims) || throw(ArgumentError("Dimensions must be positive, found: $(dims...)"))
+    cidxs = CartesianIndices(dims)
+    comps = [ symbols("$(head)$(join(Tuple(c)))") for c in cidxs ]
+    ideps = deepcopy(comps[:])
+    deps  = deepcopy(comps[:])
+    return SymbolicTensor(head, comps, deps, ideps)
 end
 
-function isvalidslot(s, a::AbstractArray)
-    return 1 <= s <= ndims(a)
-end
 
-function symmetrize!(a::AbstractArray{T,2}, slot1::Int64, slot2::Int64) where T
-    if !isvalidslot(slot1, a) || !isvalidslot(slot2, a)
-        error("Slot indices '$slot1,$slot1' exceed rank of 2-array")
-    end
-    s1, s2 = size(a)
-    for i1 = 1:s1, i2 = i1+1:s2
-        a[i2,i1] = a[i1,i2]
-    end
-end
+#######################################################################
+#                               Methods                               #
+#######################################################################
 
-function antisymmetrize!(a::AbstractArray{T,2}, slot1::Int64, slot2::Int64) where T
-    if !isvalidslot(slot1, a) || !isvalidslot(slot2, a)
-        error("Slot indices '$slot1,$slot1' exceed rank of 2-array")
-    end
-    s1, s2 = size(a)
-    for i1 = 1:s1, i2 = i1:s2
-        a[i2,i1] = i1 == i2 ? 0 : -a[i1,i2]
-    end
-end
 
-function permute_slots_to_start(a::AbstractArray, slot1, slot2)
-    # construct permutation indices such that slot indices appear first
-    slots = [ i for i = 1:ndims(a) ]
-    slots[slot1], slots[1] = slots[1], slots[slot1]
-    slots[slot2], slots[2] = slots[2], slots[slot2]
-    # permutation view
-    pa = PermutedDimsArray(a, slots)
-    return pa
-end
+Base.promote_rule(::Type{Bool}, ::Type{Basic}) = Basic
 
-function permute_slots_to_start(a::AbstractArray, slot1::NTuple{N}, slot2::NTuple{N}) where N
-    # construct permutation indices such that slot1 indices appear first, then slot2 indidces
-    # and then any remaining indices
-    slots  = [ i for i = 1:ndims(a) ]
-    vslot1 = [ s1 for s1 in slot1 ]
-    vslot2 = [ s2 for s2 in slot2 ]
-    diffslots = setdiff(slots, vslot1, vslot2)
-    perm = vcat(vslot1, vslot2, diffslots)
-    pa = PermutedDimsArray(a, perm)
-    return pa
-end
 
-function symmetrize!(a::AbstractArray, slot1::Int64, slot2::Int64)
+function extract_coefficient_matrix(equation, tensor)
 
-    if !isvalidslot(slot1, a) || !isvalidslot(slot2, a)
-        error("Slot indices '$slot1,$slot1' exceed rank of $(ndims(a))-array")
-    end
+    coeffs = zeros(Float64, length(equation), length(tensor))
 
-    pa = permute_slots_to_start(a, slot1, slot2)
+    v_equation = view(equation, :)
+    v_tensor = view(tensor, :)
 
-    sz = size(a)
-    s1, s2 = sz[slot1], sz[slot2]
-    nresdims = ndims(a) - 2
-    cols = (Colon() for _ = 1:nresdims)
-    for i1 = 1:s1, i2 = i1+1:s2
-        pa[i2,i1,cols...] .= pa[i1,i2,cols...]
-    end
-
-    return
-end
-
-function symmetrize!(a::AbstractArray, slot1::NTuple{N,Int64}, slot2::NTuple{N,Int64}) where N
-
-    if any(s -> !isvalidslot(s, a), slot1) || any(s -> !isvalidslot(s, a), slot2)
-        error("Slot indices '$slot1,$slot1' exceed rank of $(ndims(a))-array")
-    end
-
-    pa = permute_slots_to_start(a, slot1, slot2)
-
-    sz = size(a)
-    cidxs1 = CartesianIndices(Tuple(sz[s] for s in slot1))
-    cidxs2 = CartesianIndices(Tuple(sz[s] for s in slot2))
-    nresdims = ndims(a) - length(slot1) - length(slot2)
-    if nresdims == 0
-        for c1 in cidxs1, c2 in cidxs2
-            tc1, tc2 = Tuple(c1), Tuple(c2)
-            if all(tc1 .<= tc2)
-                eqs = tc1 .== tc2
-                all(eqs) && continue
-                es = [ e for e in eqs ]
-                !all(es .= sort(es)) && continue
-                pa[tc2...,tc1...] = pa[tc1...,tc2...]
+    for (row, eq) in enumerate(v_equation)
+        free_syms = SymEngine.free_symbols(eq)
+        for (col, t) in enumerate(v_tensor)
+            if t == 0 || !(t in free_syms)
+                continue
             end
-        end
-    else
-        cols = (Colon() for _ = 1:nresdims)
-        for c1 in cidxs1, c2 in cidxs2
-            tc1, tc2 = Tuple(c1), Tuple(c2)
-            if all(tc1 .<= tc2) && !all(tc1 .== tc2)
-                pa[tc2...,tc1...,cols...] .= pa[tc1...,tc2...,cols...]
+            coeff = SymEngine.coeff(eq, t)
+            if length(SymEngine.free_symbols(coeff)) > 0
+                # TODO How to check for polynomials?
+                # e.g. x + x^2 will slip through here
+                error("Rules must be linear!")
             end
+            coeffs[row, col] = coeff
         end
     end
 
-    return
+    return coeffs
 end
 
-function antisymmetrize!(a::AbstractArray, slot1::Int64, slot2::Int64)
 
-    if !isvalidslot(slot1, a) || !isvalidslot(slot2, a)
-        error("Slot indices '$slot1,$slot1' exceed rank of $(ndims(a))-array")
+# function ispoly(b::Basic)
+#     vars = SymEngine.CSetBasic()
+#     # basic_is_symbol not exported by SymEngine C++ library
+#     return ccall((:basic_is_polynomial, SymEngine.libsymengine), Bool, (Ref{Basic},Ref{SymEngine.CSetBasic}), b, vars)
+# end
+
+
+function resolve_dependents(tensor, equation)
+
+    coeffs = extract_coefficient_matrix(equation, tensor)
+
+    # number of linear independent equations to consider for determining dependent components
+    rk = rank(coeffs)
+    if rk == 0
+        # TODO Should display also relevant line
+        @warn "Equation does not provide any constraints"
+        return deepcopy(tensor)
     end
 
-    pa = permute_slots_to_start(a, slot1, slot2)
+    # reduce coeff matrix to row echelon form
+    # this is slow because it uses Gaussian elimination
+    RowEchelon.rref!(coeffs)
+    echelon_coeffs = convert.(Int64, round.(coeffs))
+    red_coeffs = view(echelon_coeffs, 1:rk, :)
 
-    sz = size(a)
-    s1, s2 = sz[slot1], sz[slot2]
-    nresdims = ndims(a) - 2
-    cols = ( Colon() for _ = 1:nresdims)
-    for i1 = 1:s1, i2 = i1:s2
-        pa[i2,i1,cols...] .= i1 == i2 ? 0 : -pa[i1,i2,cols...]
+    # re-assemble equations
+    v_tensor = view(tensor, :)
+    # this is slow
+    red_eqs = [ dot(v_tensor, row) for row in eachrow(red_coeffs) ]
+
+    # determine dependent variables by solving equations one after another
+    deps = SymEngine.Basic[]
+    subs = SymEngine.Basic[]
+    deps_zeros = SymEngine.Basic[]
+    for eq in red_eqs
+
+        # gather remaining variables
+        vars = SymEngine.free_symbols(eq)
+        nvars = length(vars)
+
+        # solve equation
+        if nvars == 1
+            # coeff * var = 0 => var = 0
+            push!(deps_zeros, first(vars))
+            continue
+        end
+
+        # nvars > 1
+        str_vars = string.(vars)
+        p = sortperm(str_vars)
+        vars = vars[p]
+        next = findfirst(!in(deps), reverse!(vars))
+        if isnothing(next)
+            throw(ErrorException("This should not have happened!"))
+        end
+        dep = vars[something(next)]
+        if dep in deps
+            throw(ErrorException("$dep duplicated"))
+        end
+        coeff_dep = SymEngine.coeff(eq, dep)
+        sub = SymEngine.expand(- eq + coeff_dep * dep)
+
+        push!(deps, dep)
+        push!(subs, sub)
     end
 
-    return
+    @assert length(deps) + length(deps_zeros) == rk
+
+    # topologically sort dependent variables such that when substituting
+    # really only independent variables remain
+    deps_vars = [ SymEngine.free_symbols(s) for s in subs ]
+    perm = topological_sort(deps, deps_vars)
+
+    deps = deps[perm]
+    subs = subs[perm]
+
+    # assemble reduced tensor
+    redtensor = deepcopy(tensor)
+    for idx = 1:length(redtensor)
+        for (d, s) in zip(deps, subs)
+            redtensor[idx] = SymEngine.subs(redtensor[idx], d, s)
+        end
+        for d in deps_zeros
+            redtensor[idx] = SymEngine.subs(redtensor[idx], d, 0)
+        end
+        redtensor[idx] = SymEngine.expand(redtensor[idx])
+    end
+
+    return redtensor
 end
-
-struct SymbolicTensor{N}
-    idxs::NTuple{N,UnitRange{Int64}}
-    rules::Vector{Rule}
-end
-
-function SymbolicTensor(idxs::Int64...)
-    all(i -> i > 0, idxs) || error("Index ranges must be positive")
-    return SymbolicTensor(to_range.(idxs), Rule[])
-end
-
-function SymbolicTensor(idxs::Index...)
-    rngs = [ i.rng for i in idxs ]
-    return SymbolicTensor(rngs)
-end
-
-to_range(i::AbstractRange) = i
-to_range(i::Int) = 1:i
-
-Base.size(a::SymbolicTensor) = length.(a.idxs)
-
-function Base.collect(a::SymbolicTensor, head::Symbol)
-    dims = size(a)
-    cidxs = CartesianIndices(a.idxs)
-    rawt = [ symbols("$(head)$(join(Tuple(c)))") for c in cidxs ]
-    t = reshape(rawt, dims)
-    # for r in a.rules
-    #     impose_rule!(t, r)
-    # end
-    return t
-end
-
-macro collect(expr...)
-    return esc(_collect(expr))
-end
-
-function _collect(expr)
-    row = [ :(collect($ex,Symbol($(string(ex))))) for ex in expr]
-    return quote $(row...) end
-end
-
-Base.push!(a::SymbolicTensor, r::Rule) = push!(a.rules, r)
