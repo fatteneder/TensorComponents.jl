@@ -9,10 +9,6 @@ function components(expr)
     # display(expr)
 
     expr.head !== :block && error("Expected :block, found $(expr.head)")
-
-    expr = MacroTools.flatten(expr)
-    # Should we use MacroTools.unblock here?
-
     exprs = expr.args
 
     # checks that indices are *Symbols* and their index range is valid.
@@ -154,14 +150,10 @@ function gather_tensor_equations_definitions(exprs)
 
     for (nr, ex) in enumerate(exprs)
 
-        # ignore index definitions
-        matched = MacroTools.@capture(ex, @index args__)
-        matched && continue
-
-        !TO.isassignment(ex) && error("@components: unkown expression encountered: '$ex' ")
-
-        push!(linenrs, nr)
-        push!(eqs, ex)
+        if TO.isassignment(ex)
+            push!(linenrs, nr)
+            push!(eqs, ex)
+        end
 
     end
 
