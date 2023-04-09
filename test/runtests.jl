@@ -5,6 +5,7 @@ using TensorOperations
 using SymEngine
 
 const TC = TensorComponents
+const TO = TensorOperations
 
 
 @testset "@index tests" begin
@@ -53,16 +54,79 @@ const TC = TensorComponents
 
 end
 
-# # multiple index definitions
-# @index (4) i j k l m i j k
-#
-# # invalid tensor definition
-# @input A[i,j]<1 B[i,j,k] C[i]
-#
-# # multiple tensor definitions
-# @input A[i,j] A[i,j] B[i,j,k] C[i]
-#
-# # invalid symmetry relation
-# @input A[i,j] - A[j,i]
-# @input A[i,j] == A[j,i]
-# @input A[i,j] = A[j,i,j]
+
+@testset "@components equations test" begin
+
+    ### valid use
+
+    # one equation
+    @test (eval(TC.components(quote
+        @index i, j = 4
+        A[i,j] = B[i,j]
+    end)); true)
+    # multiple equations
+    @test (eval(TC.components(quote
+        @index i, j, k = 1:3
+        A[i,j] = B[i,j,k] * C[k]
+        D[i]   = A[i,j] * C[j]
+        E[i]   = B[i,k,k]
+    end)); true)
+    # multiple equations with mixed indices
+    @test (eval(TC.components(quote
+        @index i, j, k = 1:3
+        @index a, b, c = 3:5
+        A[i,j] = B[i,j,a] * C[a]
+        D[i]   = A[i,b] * C[b]
+        E[i,a] = B[i,a,b] * C[b]
+    end)); true)
+
+    # TODO Why is here a stack overflow?
+    # we can handle name clashes between tensors and indices
+    # @test (eval(TC.components(quote
+    #     @index I, J = 1:3
+    #     # I[I,J] = J[I,J]
+    # end)); true)
+    # TODO How to deal with the coefficients? Those need to be Basics ...
+    # @test (eval(TC.components(quote
+    #     @index i, j = 4
+    #     A[i,j] = α * A[i,j]
+    # end)); true)
+
+
+    ### invalid use
+
+    # undefined indices
+    @test_throws ErrorException TC.components(quote
+        @index i, j = 4
+        A[a,b] = B[b,a]
+    end)
+    @test_throws ErrorException TC.components(quote
+        @index i, j = 4
+        A[j,i] = B[a,j,i]
+    end)
+    @test_throws ErrorException TC.components(quote
+        @index i, j = 4
+        A[a,i] = B[a,i]
+    end)
+    # undefined indices with multiple equations
+    @test_throws ErrorException TC.components(quote
+        @index i, j, k = 4
+        A[i,j] = B[i,j] * C[k,k]
+        D[a]   = B[i,j]
+    end)
+    # invalid contractions (errors coming from TensorOperations.@tensor
+    # so we need to use @eval to force evaluation of @tensor)
+    @test_throws TO.IndexError eval(TC.components(quote
+        @index i, j, k = 4
+        A[i,j] = B[i,j,j]
+    end))
+    @test_throws TO.IndexError eval(TC.components(quote
+        @index i, j = 1:4
+        A[i,j] = B[i,j,j]
+    end))
+    @test_throws TO.IndexError eval(TC.components(quote
+        @index i, j, k = 3
+        A[i,j] = B[i,j] + C[k]
+    end))
+
+end
