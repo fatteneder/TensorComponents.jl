@@ -5,74 +5,56 @@ end
 
 function components(expr)
     expr = MacroTools.prewalk(MacroTools.rmlines, expr)
-    # expr = TO.removelinenumbernode(expr)::Expr
-    # display(expr)
 
     expr.head !== :block && error("Expected :block, found $(expr.head)")
     exprs = expr.args
 
-    # checks that indices are *Symbols* and their index range is valid.
+    # checks that indices are *Symbols* and their index range is valid
     idx_names, idx_dims, idx_linenrs = gather_index_definitions(exprs)
 
+    # TODO Implement
     # sym_tensor_heads, sym_lhs, sym_rhs = gather_symmetry_definitions(exprs)
 
     # gather tensor statements =^= every ex for which TO.isassignment(ex) = true
     eqs, eq_linenrs = gather_tensor_equations_definitions(exprs)
 
-    # Gather tensor heads and all index pairs that appear with them.
+    # gather tensor heads and all index pairs that appear with them
     # In this step we also
-    # - verify that all tensors are used with the same rank among all statements,
-    # - Verify that all indices appearing in tensor statements have been defined with @index.
+    # - verify that tensors have consistent rank in all eqs,
+    # - verify that all indices appearing in tensor statements have been defined with @index.
     heads, idxpairs = gather_tensor_heads_idxpairs(eqs, idx_names)
 
     # determine independent tensors; relies on tensors having consistent ranks
     idep_heads = determine_independents(eqs)
 
-    # determine tensor size from all the idxpairs they are used with
+    # for each tensor determine all indices used in every slot
     uheads, grouped_idxs = group_indices_by_slot(heads, idxpairs)
 
     ### generate code
 
     # define indices
     def_idxs = [ :($name = TensorComponents.Index($dim)) for (dim,name) in zip(idx_dims, idx_names) ]
-    # display(def_idxs)
 
     # define symbolic tensors
     aux_slotdims = [ [ :(TensorComponents.slotdim($(idxs...))) for idxs in gidxs ] for gidxs in grouped_idxs ]
     def_tensors  = [ :($head = TensorComponents.SymbolicTensor($(QuoteNode(head)), $(slotdims...)))
                      for (head,slotdims) in zip(uheads, aux_slotdims) ]
-    # display(def_tensors)
 
-    # process eqs
+    # define components:
     # 1. setup views of tensors
-    # 2. handle contraction to TensorOperations.@tensor macro
+    # 2. forward contraction to TensorOperations.@tensor macro
     # 3. gather output
     def_components = [ generate_components_code(eq) for eq in eqs ]
-    # display(def_components)
 
     code = quote
         $(def_idxs...)
         $(def_tensors...)
 
         components = Tuple{Basic,Basic}[]
-        # $([ :(comps = $def; append!(components, comps)) for def in def_components ]...)
         $([ :(comps = $def; append!(components, comps)) for def in def_components ]...)
 
         return components
     end
-    # display(code)
-
-    # TODO
-    # - Determine the 'largest envelope' for each tensor
-    # - Generate the @tensor expressions
-    #   - take views for each tensor in the RHS
-    #   - build a @tensor expresssion from the views, but the result is captured in
-    #     a tensor 'res' which has the same result as the LHS
-    #   - extract the independent components from the result (only needed if the LHS
-    #     has symmetries)
-    #   - Q (only relevant once symmetries work): How to extract the independent
-    #     ones if views are used on the LHS?
-    #     Just filter the independents of the LHS and then extract only those.
 
     return code
 
@@ -311,10 +293,8 @@ function generate_components_code(eq)
 
     lhs_head, lhs_idxs = lhs_tensor[1], lhs_tensor[2]
     vlhs_tensor = :($(Symbol(:v_,lhs_head)) = view($lhs_head, $(lhs_idxs...)))
-    # display(vlhs_tensor)
     vrhs_tensors = [ :($(Symbol(:v_,head)) = view($head, $(idxs...))) for
                      (head,idxs,_) in rhs_tensors ]
-    # display(vrhs_tensors)
 
     # we carry out the contraction using TO.@tensor
     # we do so by interpolating/capturing the views of the rhs tensors into a let block
@@ -344,7 +324,6 @@ function generate_components_code(eq)
     append!(letargs, :($head = $(Symbol(:v_,head))) for (head,_,_) in rhs_tensors)
     ret_lhs = Symbol(:ret_, lhs_head)
     let_tensor_expr = :($ret_lhs = let $(letargs...); @tensor $eq; $lhs_head end)
-    # display(let_tensor_expr)
 
     # unpack the results
     # TODO only unpack the independent components of the lhs_tensor
