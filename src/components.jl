@@ -104,26 +104,35 @@ function gather_index_definitions(exprs)
         matched = MacroTools.@capture(ex, @index args__)
         !matched && continue
 
-        matched_tpl = MacroTools.@capture(args[1], (idxs__,) = dim_)
-        matched_sngl = MacroTools.@capture(args[1], idx_ = dim_)
+        if length(args) == 0
+            error("@components: @index: expected something like '@index a b c = 1:4', found '$ex'")
+        end
+
+        matched_tpl = MacroTools.@capture(args[1], (idxs__,) = range_)
+        matched_sngl = MacroTools.@capture(args[1], idx_ = range_)
         if !matched_tpl && !matched_sngl
             error("@components: @index: expected something like '@index a b c = 1:4', found '$ex'")
         end
 
-        !(dim isa Int || dim <= 0) && error("@components: @index: index range must be positive integer")
+        matched_range = MacroTools.@capture(range, start_:stop_)
+        dim = matched_range ? (start:stop) : range
+
+        if !((dim isa Int && dim > 0) || (dim isa UnitRange && dim.start > 0 && length(dim) > 0))
+            error("@components: @index: index range must be positive integer or a positive unit range (e.g. 1:4, 2:4), found '$dim'")
+        end
 
         idxlist = matched_tpl ? idxs : [idx]
         for idx in idxlist
             !(idx isa Symbol) && error("@components: @index: names must be symbols like 'a, b, i123', found '$idx' in '$ex'")
             push!(linenrs, nr)
-            push!(dims, dim)
+            push!(dims, dim isa Int ? dim : length(dim))
             push!(indices, idx)
         end
     end
 
     uindices = unique(indices)
     if length(indices) != length(uindices)
-        dups = [ u for u in uidx if count(i -> i === u, indices) > 1 ]
+        dups = [ u for u in uindices if count(i -> i === u, indices) > 1 ]
         error("@components: @index: an index can only be defined once, found multiple definitions for '$(join(dups,' '))'")
     end
 
