@@ -102,31 +102,36 @@ An index can only be declared once in an `exprs` block.
 """
 function gather_index_definitions(exprs)
 
-    linenrs, dims, names = Int[], Int[], Symbol[]
+    linenrs, dims, indices = Int[], Int[], Symbol[]
     for (nr, ex) in enumerate(exprs)
+        # matched = MacroTools.@capture(ex, @index names__ = range__)
         matched = MacroTools.@capture(ex, @index args__)
         !matched && continue
 
-        # extract index dimensions and index names
-        length(args) <= 1 && error("@components: @index: expected something like '@index range a b c ...', found '$ex'")
-        N = args[1]
-        !(N isa Int || N <= 0) && error("@components: @index: dimension must be a positive integer, found '$N' in '$ex'")
-        idxs = args[2:end]
-        for idx in idxs
+        matched_tpl = MacroTools.@capture(args[1], (idxs__,) = dim_)
+        matched_sngl = MacroTools.@capture(args[1], idx_ = dim_)
+        if !matched_tpl && !matched_sngl
+            error("@components: @index: expected something like '@index a b c = 1:4', found '$ex'")
+        end
+
+        !(dim isa Int || dim <= 0) && error("@components: @index: index range must be positive integer")
+
+        idxlist = matched_tpl ? idxs : [idx]
+        for idx in idxlist
             !(idx isa Symbol) && error("@components: @index: names must be symbols like 'a, b, i123', found '$idx' in '$ex'")
             push!(linenrs, nr)
-            push!(dims, N)
-            push!(names, idx)
+            push!(dims, dim)
+            push!(indices, idx)
         end
     end
 
-    unames = unique(names)
-    if length(names) != length(unames)
-        dups = [ u for u in unames if count(i -> i === u, names) > 1 ]
+    uindices = unique(indices)
+    if length(indices) != length(uindices)
+        dups = [ u for u in uidx if count(i -> i === u, indices) > 1 ]
         error("@components: @index: an index can only be defined once, found multiple definitions for '$(join(dups,' '))'")
     end
 
-    return names, dims, linenrs
+    return indices, dims, linenrs
 end
 
 

@@ -6,7 +6,7 @@ using SymEngine
 # @macroexpand @components begin
 @components begin
 
-    @index (4) i j k l
+    @index i, j, k, l = 4
 
     # Ignoring this for the first draft.
     # # optional for now
