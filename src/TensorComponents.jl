@@ -1,16 +1,21 @@
 module TensorComponents
 
+
 using LinearAlgebra
+using MacroTools
+using RowEchelon
 using SymEngine
 using TensorOperations
 import TensorOperations: Strided
 
 const TO = TensorOperations
 
-include("index.jl")
+
+export @components
+include("utils.jl")
 include("symbolictensor.jl")
+include("index.jl")
 include("components.jl")
 
-export @components, @expand, SymbolicTensor
 
-end # module TensorComponents
+end

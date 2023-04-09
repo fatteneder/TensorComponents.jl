@@ -5,5 +5,7 @@ version = "0.1.0"
 
 [deps]
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+MacroTools = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
+RowEchelon = "af85af4c-bcd5-5d23-b03a-a909639aa875"
 SymEngine = "123dc426-2d89-5057-bbad-38513e3affd8"
 TensorOperations = "6aa20fa7-93e2-5fca-9bc0-fbd0db3c71a2"
