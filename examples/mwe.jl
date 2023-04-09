@@ -1,5 +1,6 @@
 using TensorComponents
 using TensorOperations
+using SymEngine
 
 
 # @macroexpand @components begin
