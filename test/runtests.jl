@@ -130,3 +130,21 @@ end
     end))
 
 end
+
+
+@testset "utils" begin
+
+    # topological sort
+    nodes  = [ 10, 8, 5, 3, 2, 11, 9, 7 ]
+    childs = Vector{Int}[ [], [9,10], [11], [8], [], [2,9], [], [11,8] ]
+    seq = TC.topological_sort(nodes, childs)
+    sorted_nodes  = nodes[seq]
+    sorted_childs = childs[seq]
+    N = length(nodes)
+    # test that when walking the sorted nodes list, all childs of a node
+    # occur after the node
+    @test all(1:N) do idx
+        all(c -> c in view(sorted_nodes, idx:N), sorted_childs[idx])
+    end
+
+end
