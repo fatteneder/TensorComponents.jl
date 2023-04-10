@@ -44,9 +44,27 @@ function topological_sort(nodes::Vector{T}, childs::Vector{Vector{T}}) where T
 end
 
 
-function test_topological_sort()
-    nodes  = [ 10, 8, 5, 3, 2, 11, 9, 7 ]
-    childs = Vector{Int}[ [], [9,10], [11], [8], [], [2,9], [], [11,8] ]
-    seq = topological_sort(nodes, childs)
-    sorted_nodes = nodes[seq]
+# analogon to TO.gettensors, but to extract all the scalar factors
+# that multiply a (general)tensor in an expression
+function getscalars(expr)
+    scalars = Any[]
+    _getscalars!(expr, scalars)
+    return scalars
+end
+
+
+function _getscalars!(expr, scalars)
+    if TO.istensor(expr)
+        # nothing to do
+    elseif TO.isscalarexpr(expr)
+        push!(scalars, expr)
+    elseif TO.isgeneraltensor(expr)
+        _, _, _, s, _ = TO.decomposegeneraltensor(expr)
+        push!(scalars, s)
+    elseif expr.head === :call && expr.args[1] in (:+,:-,:*,:/)
+        foreach(ex -> _getscalars!(ex, scalars), expr.args[2:end])
+    else
+        error("Found unknown expression: '$expr'")
+    end
+    return
 end

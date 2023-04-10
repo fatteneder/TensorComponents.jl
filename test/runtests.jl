@@ -147,4 +147,13 @@ end
         all(c -> c in view(sorted_nodes, idx:N), sorted_childs[idx])
     end
 
+    # getscalars
+    @test TC.getscalars(:(a)) == Any[:a]
+    @test TC.getscalars(:(a * A[i,j])) == Any[:(a * true)]
+    @test TC.getscalars(:(2 * a * A[i,j])) == Any[:(2 * a * true)]
+    @test TC.getscalars(:(a * 2 * A[i,j])) == Any[:(a * 2 * true)]
+    @test TC.getscalars(:(x * A[i,j] + B[j,i] * y)) == Any[:(x * true), :(true * y)]
+    @test TC.getscalars(:((x^2 + y)^2 * A[i,j] + B[j,i] * y)) == Any[:((x^2 + y)^2 * true), :(true * y)]
+    @test TC.getscalars(:(cos(α) * A[i,j] + B[j,i] * sin(α))) == Any[:(cos(α) * true), :(true * sin(α))]
+
 end
