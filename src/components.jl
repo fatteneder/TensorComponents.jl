@@ -10,13 +10,13 @@ function components(expr)
     exprs = expr.args
 
     # checks that indices are *Symbols* and their index range is valid
-    uidxs, idx_dims, idx_linenrs = gather_index_definitions(exprs)
+    uidxs, idx_dims = gather_index_definitions(exprs)
 
     # TODO Implement
     # sym_tensor_heads, sym_lhs, sym_rhs = gather_symmetry_definitions(exprs)
 
     # gather tensor statements =^= every ex for which TO.isassignment(ex) = true
-    eqs, eq_linenrs = gather_tensor_equations_definitions(exprs)
+    eqs = gather_tensor_equations_definitions(exprs)
 
     # gather tensor heads and all index pairs that appear with them (for each equation)
     # In this step we also
@@ -89,7 +89,7 @@ An index can only be declared once in an `exprs` block.
 """
 function gather_index_definitions(exprs)
 
-    linenrs, dims, indices = Int[], Int[], Symbol[]
+    dims, indices = Int[], Symbol[]
     for (nr, ex) in enumerate(exprs)
         # matched = MacroTools.@capture(ex, @index names__ = range__)
         matched = MacroTools.@capture(ex, @index args__)
@@ -115,7 +115,6 @@ function gather_index_definitions(exprs)
         idxlist = matched_tpl ? idxs : [idx]
         for idx in idxlist
             !(idx isa Symbol) && error("@components: @index: names must be symbols like 'a, b, i123', found '$idx' in '$ex'")
-            push!(linenrs, nr)
             push!(dims, dim isa Int ? dim : length(dim))
             push!(indices, idx)
         end
@@ -127,7 +126,7 @@ function gather_index_definitions(exprs)
         error("@components: @index: an index can only be defined once, found multiple definitions for '$(join(dups,' '))'")
     end
 
-    return indices, dims, linenrs
+    return indices, dims
 end
 
 
@@ -144,20 +143,7 @@ In particular, returns all lines for which `TensorOperations.isassignment(ex) = 
 No checks on index contraction etc are done here.
 """
 function gather_tensor_equations_definitions(exprs)
-
-    # record line numbers for debugging info
-    linenrs, eqs = Int[], Expr[]
-
-    for (nr, ex) in enumerate(exprs)
-
-        if TO.isassignment(ex)
-            push!(linenrs, nr)
-            push!(eqs, ex)
-        end
-
-    end
-
-    return eqs, linenrs
+    return [ ex for ex in exprs if TO.isassignment(ex) ]
 end
 
 
@@ -168,6 +154,7 @@ Return list of all tensor heads and a list of the indices they are used with.
 """
 function gather_tensor_heads_idxpairs(eqs, idx_names)
 
+    # record linenrs for debugging
     tensorheads, tensoridxs, linenrs = Symbol[], Vector{Any}[], Int[]
     for (nr, eq) in enumerate(eqs)
 
