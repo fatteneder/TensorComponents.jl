@@ -6,7 +6,7 @@ end
 function components(expr)
     expr = MacroTools.prewalk(MacroTools.rmlines, expr)
 
-    expr.head !== :block && error("Expected :block, found $(expr.head)")
+    @assert expr.head === :block "Expected :block, found $(expr.head)"
     exprs = expr.args
 
     # checks that indices are *Symbols* and their index range is valid
@@ -34,7 +34,7 @@ function components(expr)
     # for each tensor determine all indices used in every slot
     uheads, grouped_idxs = group_indices_by_slot(heads, idxpairs)
 
-    resolve_name_clahes!(uidxs, uheads, uscalarvars)
+    resolve_name_clashes!(uidxs, uheads, uscalarvars)
 
     ### generate code
 
@@ -237,11 +237,11 @@ end
 
 
 """
-    resolve_name_clahes!(uidxs, uheads, uscalarvars)
+    resolve_name_clashes!(uidxs, uheads, uscalarvars)
 
 Avoid name clashes between indices and tensor heads and scalar variables.
 """
-function resolve_name_clahes!(uidxs, uheads, uscalarvars)
+function resolve_name_clashes!(uidxs, uheads, uscalarvars)
     # TODO Could use gensym to allow using the same name for tensor heads, index and scalar variable.
     # Duplicated names between tensors and variables are undesired, but it can be useful for
     # indices, e.g. a[a,b] = b[a,c] * b[c,a].
