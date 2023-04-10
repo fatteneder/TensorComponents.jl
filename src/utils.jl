@@ -44,7 +44,7 @@ function topological_sort(nodes::Vector{T}, childs::Vector{Vector{T}}) where T
 end
 
 
-# analogon to TO.gettensors, but to extract all the scalar factors
+# analog to TO.gettensors, but to extract all the scalar factors
 # that multiply a (general)tensor in an expression
 function getscalars(expr)
     scalars = Any[]
@@ -65,6 +65,28 @@ function _getscalars!(expr, scalars)
         foreach(ex -> _getscalars!(ex, scalars), expr.args[2:end])
     else
         error("Found unknown expression: '$expr'")
+    end
+    return
+end
+
+
+# variable =^= any Symbol that is used in an expression with head===:call
+function getvariables(ex)
+    vars = Symbol[]
+    _getvariables!(ex, vars)
+    return vars
+end
+
+
+_getvariables!(s::Symbol, vars) = push!(vars, s)
+_getvariables!(s::Number, vars) = nothing
+function _getvariables!(ex::Expr, vars)
+    if ex.head === :call
+        foreach(ex.args[2:end]) do a
+            _getvariables!(a, vars)
+        end
+    else
+        error("Failed to extract variables from '$ex'")
     end
     return
 end
