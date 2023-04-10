@@ -8,7 +8,7 @@ const TC = TensorComponents
 const TO = TensorOperations
 
 
-@testset "@components equations test" begin
+@testset "@components equations" begin
 
     ### valid use
 
@@ -108,7 +108,7 @@ const TO = TensorOperations
 end
 
 
-@testset "@index tests" begin
+@testset "@index" begin
 
     ### valid use
 
@@ -187,5 +187,31 @@ end
     @test TC.getvariables.(TC.getscalars(:(x * A[i,j] + B[j,i] * y))) == [ [:x], [:y] ]
     @test TC.getvariables.(TC.getscalars(:((x^2 + y)^2 * A[i,j] + B[j,i] * y))) == [ [:x, :y], [:y] ]
     @test TC.getvariables.(TC.getscalars(:(cos(α) * A[i,j] + B[j,i] * sin(α)))) == [ [:α], [:α] ]
+
+end
+
+
+function reduce_components_riemann_tensor(Riem)
+    bianchi = permutedims(Riem,(1,2,3,4)) + permutedims(Riem,(1,3,4,2)) + permutedims(Riem,(1,4,2,3))
+    Riem    = TC.resolve_dependents(Riem, bianchi)
+    asym1   = permutedims(Riem,(1,2,3,4)) + permutedims(Riem,(2,1,3,4))
+    Riem    = TC.resolve_dependents(Riem, asym1)
+    asym2   = permutedims(Riem,(1,2,3,4)) + permutedims(Riem,(1,2,4,3))
+    Riem    = TC.resolve_dependents(Riem, asym2)
+    return Riem
+end
+
+
+@testset "SymbolicTensor" begin
+
+    for N = 2:4
+        Riem = TC.SymbolicTensor(:R,N,N,N,N)
+        red_Riem = reduce_components_riemann_tensor(Riem)
+        ideps = [ SymEngine.free_symbols(R) for R in red_Riem[:] ]
+        uideps = unique!(reduce(vcat, ideps))
+        # https://physics.stackexchange.com/a/506095
+        n_ideps = Int(N^2*(N^2-1)/12)
+        @test length(uideps) == n_ideps
+    end
 
 end
