@@ -79,18 +79,12 @@ end
         D[i]   = A[i,b] * C[b]
         E[i,a] = B[i,a,b] * C[b]
     end)); true)
-
-    # TODO Why is here a stack overflow?
-    # we can handle name clashes between tensors and indices
-    # @test (eval(TC.components(quote
-    #     @index I, J = 1:3
-    #     # I[I,J] = J[I,J]
-    # end)); true)
-    # TODO How to deal with the coefficients? Those need to be Basics ...
-    # @test (eval(TC.components(quote
-    #     @index i, j = 4
-    #     A[i,j] = α * A[i,j]
-    # end)); true)
+    # Shuffle in some scalar variables, also with functions
+    @test (eval(TC.components(quote
+        @index i, j = 4
+        A[i,j] = a * B[i,j]
+        C[i,j] = cos(α) * D[i,j] + sin(β) * E[i,j]
+    end)); true)
 
 
     ### invalid use
@@ -114,6 +108,25 @@ end
         A[i,j] = B[i,j] * C[k,k]
         D[a]   = B[i,j]
     end)
+
+    # name clashes
+    # between index and tensor
+    @test_throws ErrorException TC.components(quote
+        @index A, I, J = 1:3
+        A[I,J] = B[I,J]
+    end)
+    # between index and scalar variable
+    @test_throws ErrorException TC.components(quote
+        @index I, J = 1:3
+        A[I,J] = I * B[I,J]
+    end)
+    # between tensor and scalar variable
+    @test_throws ErrorException TC.components(quote
+        @index I, J = 1:3
+        A[I,J] = A * B[I,J]
+    end)
+
+
     # invalid contractions (errors coming from TensorOperations.@tensor
     # so we need to use @eval to force evaluation of @tensor)
     @test_throws TO.IndexError eval(TC.components(quote
