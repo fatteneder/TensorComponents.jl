@@ -9,27 +9,26 @@ function components(expr)
     @assert expr.head === :block "Expected :block, found $(expr.head)"
     exprs = expr.args
 
+    ex_idxs, ex_eqs, ex_sym = decompose_expressions(exprs)
+
     # checks that indices are *Symbols* and their index range is valid
-    uidxs, idx_dims = gather_index_definitions(exprs)
+    uidxs, idx_dims = parse_index_definitions(ex_idxs)
 
     # TODO Implement
-    # sym_tensor_heads, sym_lhs, sym_rhs = gather_symmetry_definitions(exprs)
+    # sym_tensor_heads, sym_lhs, sym_rhs = parse_symmetry_definitions(exprs)
 
-    # gather tensor statements =^= every ex for which TO.isassignment(ex) = true
-    eqs = gather_tensor_equations_definitions(exprs)
-
-    # gather tensor heads and all index pairs that appear with them (for each equation)
+    # parse tensor heads and all index pairs that appear with them (for each equation)
     # In this step we also
     # - verify that tensors have consistent rank in all eqs,
     # - verify that all indices appearing in tensor statements have been defined with @index.
-    heads, idxpairs = gather_tensor_heads_idxpairs(eqs, uidxs)
+    heads, idxpairs = parse_tensor_heads_idxpairs(ex_eqs, uidxs)
 
-    # gather all variables that appear in scalar factors (for each equation)
-    scalarvars = gather_scalar_variables(eqs)
+    # parse all variables that appear in scalar factors (for each equation)
+    scalarvars = parse_scalar_variables(ex_eqs)
     uscalarvars = unique!(reduce(vcat, scalarvars, init=Symbol[]))
 
     # determine independent tensors; relies on tensors having consistent ranks
-    idep_heads = determine_independents(eqs)
+    idep_heads = determine_independents(ex_eqs)
 
     # for each tensor determine all indices used in every slot
     uheads, grouped_idxs = group_indices_by_slot(heads, idxpairs)
@@ -53,7 +52,7 @@ function components(expr)
     # 1. setup views of tensors
     # 2. forward contraction to TensorOperations.@tensor macro
     # 3. gather output
-    def_components = [ generate_components_code(eq) for eq in eqs ]
+    def_components = [ generate_components_code(eq) for eq in ex_eqs ]
 
     code = quote
         $(def_idxs...)
@@ -75,25 +74,42 @@ slotdim(i::Index) = length(i)
 slotdim(is...) = maximum(slotdim(i) for i in is)
 
 
-"""
-    function gather_index_definitions(exprs)
+# We recognize the following lines
+# - lines starting with @index
+# - lines starting with @symmetry
+# - lines with an assignment, e.g. A[i,j] = B[i,j] or a = b + 1
+function decompose_expressions(exprs)
 
-Gather lines from `exprs` which look like
-```julia
-    @index a, b, c, d = 4
-```
+    idxs, eqs, syms = Expr[], Expr[], Expr[]
 
-Index names must be valid Julia `Symbols`, e.g. `a, b, i123`.
+    for ex in exprs
+        matched = MacroTools.@capture(ex, @index __)
+        matched && (push!(idxs, ex); true) && continue
+        matched = TO.isassignment(ex)
+        matched && (push!(eqs, ex); true) && continue
+        matched = MacroTools.@capture(ex, @symmetry __)
+        matched && (push!(syms, ex); true) && continue
 
-An index can only be declared once in an `exprs` block.
-"""
-function gather_index_definitions(exprs)
+        @warn "@components: found unknown expression '$ex', skipping ..."
+    end
+
+    return idxs, eqs, syms
+end
+
+
+# Gather index names and their dimensions from expressions like
+# ```julia
+#     @index a, b, c, d = 4
+# ```
+# Index names must be valid Julia `Symbols`, e.g. `a, b, i123`.
+# An index can only be declared once.
+function parse_index_definitions(exprs)
 
     dims, indices = Int[], Symbol[]
-    for (nr, ex) in enumerate(exprs)
-        # matched = MacroTools.@capture(ex, @index names__ = range__)
-        matched = MacroTools.@capture(ex, @index args__)
-        !matched && continue
+    for ex in exprs
+
+        # assuming all exprs start with @index
+        MacroTools.@capture(ex, @index args__)
 
         if length(args) == 0
             error("@components: @index: expected something like '@index a b c = 1:4', found '$ex'")
@@ -130,29 +146,8 @@ function gather_index_definitions(exprs)
 end
 
 
-"""
-    gather_tensor_equations_definitions(exprs)
-
-Gather lines from `exprs` which look like
-```julia
-    A[i,j] = B[i,j,k] * C[j] * D[k]
-```
-
-In particular, returns all lines for which `TensorOperations.isassignment(ex) = true`.
-
-No checks on index contraction etc are done here.
-"""
-function gather_tensor_equations_definitions(exprs)
-    return [ ex for ex in exprs if TO.isassignment(ex) ]
-end
-
-
-"""
-    gather_tensor_heads_idxpairs(eqs, idx_names)
-
-Return list of all tensor heads and a list of the indices they are used with.
-"""
-function gather_tensor_heads_idxpairs(eqs, idx_names)
+# Return list of all tensor heads and a list of the indices they are used with.
+function parse_tensor_heads_idxpairs(eqs, idx_names)
 
     # record linenrs for debugging
     tensorheads, tensoridxs, linenrs = Symbol[], Vector{Any}[], Int[]
@@ -202,12 +197,8 @@ function gather_tensor_heads_idxpairs(eqs, idx_names)
 end
 
 
-"""
-    gather_scalar_variables(eqs)
-
-Return list of all variables appearing in scalar factors that multiply any tensors.
-"""
-function gather_scalar_variables(eqs)
+# Return list of all variables appearing in scalar factors that multiply any tensors.
+function parse_scalar_variables(eqs)
     vars = Vector{Symbol}[]
     for eq in eqs
         lhs = TO.getlhs(eq)
@@ -223,11 +214,7 @@ function gather_scalar_variables(eqs)
 end
 
 
-"""
-    resolve_name_clashes!(uidxs, uheads, uscalarvars)
-
-Avoid name clashes between indices and tensor heads and scalar variables.
-"""
+# Avoid name clashes between indices and tensor heads and scalar variables.
 function resolve_name_clashes!(uidxs, uheads, uscalarvars)
     # TODO Could use gensym to allow using the same name for tensor heads, index and scalar variable.
     # Duplicated names between tensors and variables are undesired, but it can be useful for
@@ -245,13 +232,9 @@ function resolve_name_clashes!(uidxs, uheads, uscalarvars)
 end
 
 
-"""
-    determine_independents(eqs)
-
-Walk through equations and determine tensors which we have not been computed before
-they are used. E.g. returns all tensors that did not appear in a lhs before they first
-appeared in a rhs.
-"""
+# Walk through equations and determine tensors which we have not been computed before
+# they are used. E.g. returns all tensors that did not appear in a lhs before they first
+# appeared in a rhs.
 function determine_independents(eqs)
 
     ideps = Symbol[]
@@ -292,23 +275,19 @@ function determine_independents(eqs)
 end
 
 
-"""
-    group_indices_by_slot(heads, idxpairs)
-
-Given some `heads` and a list of indices `idxpairs` each head is used with,
-find for each head the unique indices used for each of its slot.
-
-Assumes that all `idxpairs` have consistent rank wrt their heads.
-
-# Example
-
-```julia
-heads = [ :A, :B, :A ]
-idxpairs = [ [:i,:j], [:k], [:i,:a] ]
-group_indices_by_slot(heads, idxpairs)
-[ :A, :B ], [ [[:i],[:j,:a]], [:k] ]
-```
-"""
+# Given some `heads` and a list of indices `idxpairs` each head is used with,
+# find for each head the unique indices used for each of its slot.
+#
+# Assumes that all `idxpairs` have consistent rank wrt their heads.
+#
+# # Example
+#
+# ```julia
+# heads = [ :A, :B, :A ]
+# idxpairs = [ [:i,:j], [:k], [:i,:a] ]
+# group_indices_by_slot(heads, idxpairs)
+# [ :A, :B ], [ [[:i],[:j,:a]], [:k] ]
+# ```
 function group_indices_by_slot(heads, idxpairs)
 
     uheads = unique(heads)
