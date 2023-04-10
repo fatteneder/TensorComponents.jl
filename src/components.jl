@@ -10,7 +10,7 @@ function components(expr)
     exprs = expr.args
 
     # checks that indices are *Symbols* and their index range is valid
-    idx_names, idx_dims, idx_linenrs = gather_index_definitions(exprs)
+    uidxs, idx_dims, idx_linenrs = gather_index_definitions(exprs)
 
     # TODO Implement
     # sym_tensor_heads, sym_lhs, sym_rhs = gather_symmetry_definitions(exprs)
@@ -18,11 +18,15 @@ function components(expr)
     # gather tensor statements =^= every ex for which TO.isassignment(ex) = true
     eqs, eq_linenrs = gather_tensor_equations_definitions(exprs)
 
-    # gather tensor heads and all index pairs that appear with them
+    # gather tensor heads and all index pairs that appear with them (for each equation)
     # In this step we also
     # - verify that tensors have consistent rank in all eqs,
     # - verify that all indices appearing in tensor statements have been defined with @index.
-    heads, idxpairs = gather_tensor_heads_idxpairs(eqs, idx_names)
+    heads, idxpairs = gather_tensor_heads_idxpairs(eqs, uidxs)
+
+    # gather all variables that appear in scalar factors (for each equation)
+    scalarvars = gather_scalar_variables(eqs)
+    uscalarvars = unique!(reduce(vcat, scalarvars, init=Symbol[]))
 
     # determine independent tensors; relies on tensors having consistent ranks
     idep_heads = determine_independents(eqs)
@@ -30,15 +34,20 @@ function components(expr)
     # for each tensor determine all indices used in every slot
     uheads, grouped_idxs = group_indices_by_slot(heads, idxpairs)
 
+    resolve_name_clahes!(uidxs, uheads, uscalarvars)
+
     ### generate code
 
     # define indices
-    def_idxs = [ :($name = TensorComponents.Index($dim)) for (dim,name) in zip(idx_dims, idx_names) ]
+    def_idxs = [ :($name = TensorComponents.Index($dim)) for (dim,name) in zip(idx_dims, uidxs) ]
 
     # define symbolic tensors
     aux_slotdims = [ [ :(TensorComponents.slotdim($(idxs...))) for idxs in gidxs ] for gidxs in grouped_idxs ]
     def_tensors  = [ :($head = TensorComponents.SymbolicTensor($(QuoteNode(head)), $(slotdims...)))
                      for (head,slotdims) in zip(uheads, aux_slotdims) ]
+
+    # define variables
+    def_vars = [ :($var = SymEngine.symbols($(QuoteNode(var)))) for var in uscalarvars ]
 
     # define components:
     # 1. setup views of tensors
@@ -49,6 +58,7 @@ function components(expr)
     code = quote
         $(def_idxs...)
         $(def_tensors...)
+        $(def_vars...)
 
         components = Tuple{Basic,Basic}[]
         $([ :(comps = $def; append!(components, comps)) for def in def_components ]...)
@@ -57,7 +67,6 @@ function components(expr)
     end
 
     return code
-
 end
 
 
@@ -207,6 +216,49 @@ end
 
 
 """
+    gather_scalar_variables(eqs)
+
+Return list of all variables appearing in scalar factors that multiply any tensors.
+"""
+function gather_scalar_variables(eqs)
+    vars = Vector{Symbol}[]
+    for eq in eqs
+        lhs = TO.getlhs(eq)
+        scalars = getscalars(lhs)
+        @assert length(scalars) == 0
+        rhs = TO.getrhs(eq)
+        scalars = getscalars(rhs)
+        vs = reduce(vcat, getvariables.(scalars), init=Symbol[])
+        unique!(vs)
+        push!(vars, vs)
+    end
+    return vars
+end
+
+
+"""
+    resolve_name_clahes!(uidxs, uheads, uscalarvars)
+
+Avoid name clashes between indices and tensor heads and scalar variables.
+"""
+function resolve_name_clahes!(uidxs, uheads, uscalarvars)
+    # TODO Could use gensym to allow using the same name for tensor heads, index and scalar variable.
+    # Duplicated names between tensors and variables are undesired, but it can be useful for
+    # indices, e.g. a[a,b] = b[a,c] * b[c,a].
+    if any(i -> i in uheads, uidxs) || any(i -> i in uscalarvars, uidxs) || any(h -> h in uscalarvars, uheads)
+        msg = "@components: found duplicated symbols "
+        dups1 = [ idx for idx in uidxs if idx in uheads ]
+        length(dups1) > 0 && (msg *= "between indices and tensors ('$(join(dups1,','))'), ")
+        dups2 = [ idx for idx in uidxs if idx in uscalarvars ]
+        length(dups2) > 0 && (msg *= "between indices and scalar variables ('$(join(dups2,','))'), ")
+        dups3 = [ var for var in uscalarvars if var in uheads ]
+        length(dups3) > 0 && (msg *= "between tensors and scalar variables ('$(join(dups3,','))'), ")
+        error(rstrip(msg[1:end-length(", ")]))
+    end
+end
+
+
+"""
     determine_independents(eqs)
 
 Walk through equations and determine tensors which we have not been computed before
@@ -336,7 +388,6 @@ function generate_components_code(eq)
         $let_tensor_expr
         $components_expr
     end
-    # display(code)
 
     return code
 end
