@@ -39,9 +39,9 @@ const TO = TensorOperations
         C[i,j] = cos(α) * D[i,j] + sin(β) * E[i,j]
     end)); true)
     # TODO Support scalar LHSs.
-    # @test (eval(@components begin
-    #     a = b + 1
-    # end); true)
+    @test (eval(@components begin
+        a = b + 1
+    end); true)
     # # Impose symmetries on tensors to reduce number of operations
     # @test (eval(@components begin
     #     @index i, j = 4

@@ -23,30 +23,27 @@ function components(expr)
     # - verify that all indices appearing in tensor statements have been defined with @index.
     heads, idxpairs = parse_tensor_heads_idxpairs(ex_eqs, uidxs)
 
-    # parse all variables that appear in scalar factors (for each equation)
-    scalarvars = parse_scalar_variables(ex_eqs)
-    uscalarvars = unique!(reduce(vcat, scalarvars, init=Symbol[]))
-
     # determine independent tensors; relies on tensors having consistent ranks
     idep_heads = determine_independents(ex_eqs)
 
     # for each tensor determine all indices used in every slot
     uheads, grouped_idxs = group_indices_by_slot(heads, idxpairs)
 
-    resolve_name_clashes!(uidxs, uheads, uscalarvars)
-
     ### generate code
 
     # define indices
     def_idxs = [ :($name = TensorComponents.Index($dim)) for (dim,name) in zip(idx_dims, uidxs) ]
 
-    # define symbolic tensors
-    aux_slotdims = [ [ :(TensorComponents.slotdim($(idxs...))) for idxs in gidxs ] for gidxs in grouped_idxs ]
-    def_tensors  = [ :($head = TensorComponents.SymbolicTensor($(QuoteNode(head)), $(slotdims...)))
-                     for (head,slotdims) in zip(uheads, aux_slotdims) ]
-
-    # define variables
-    def_vars = [ :($var = SymEngine.symbols($(QuoteNode(var)))) for var in uscalarvars ]
+    # define tensors and scalars
+    def_tensors = Expr[]
+    for (head, gidxs) in zip(uheads, grouped_idxs)
+        if length(gidxs) == 0
+            push!(def_tensors, :($head = SymEngine.symbols($(QuoteNode(head)))))
+        else
+            slotdims = [ :(TensorComponents.slotdim($(idxs...))) for idxs in gidxs ]
+            push!(def_tensors, :($head = TensorComponents.SymbolicTensor($(QuoteNode(head)), $(slotdims...))))
+        end
+    end
 
     # define components:
     # 1. setup views of tensors
@@ -57,7 +54,6 @@ function components(expr)
     code = quote
         $(def_idxs...)
         $(def_tensors...)
-        $(def_vars...)
 
         components = Tuple{Basic,Basic}[]
         $([ :(comps = $def; append!(components, comps)) for def in def_components ]...)
@@ -155,10 +151,25 @@ function parse_tensor_heads_idxpairs(eqs, idx_names)
 
         lhs, rhs = TO.getlhs(eq), TO.getrhs(eq)
 
-        ts_lhs = TO.gettensors(lhs)
-        ts_rhs = TO.gettensors(rhs)
-        lhs_heads_idxs = TO.decomposetensor.(ts_lhs)
-        rhs_heads_idxs = TO.decomposetensor.(ts_rhs)
+        lhs_heads_idxs = if TO.istensorexpr(lhs)
+            TO.decomposetensor.(TO.gettensors(lhs))
+        elseif TO.isscalarexpr(lhs)
+            [ (lhs, [], []) ]
+        else
+            error("@components: This should not have happened!")
+        end
+        rhs_heads_idxs = if TO.istensorexpr(rhs)
+            heads_idxs = TO.decomposetensor.(TO.gettensors(rhs))
+            vars = unique(reduce(vcat, getvariables.(getscalars(rhs)), init=Symbol[]))
+            append!(heads_idxs, (var,[],[]) for var in vars)
+            heads_idxs
+        elseif TO.isscalarexpr(rhs)
+            scalars = getscalars(rhs)
+            vars = unique(reduce(vcat, getvariables.(scalars)))
+            [ (v, [], []) for v in vars ]
+        else
+            error("@components: This should not have happened!")
+        end
 
         for heads_idxs in (lhs_heads_idxs, rhs_heads_idxs)
             for (head, idxs, _) in heads_idxs
@@ -193,6 +204,14 @@ function parse_tensor_heads_idxpairs(eqs, idx_names)
         end
     end
 
+    uheads = unique!(tensorheads)
+    uidxs = unique(reduce(vcat, tensoridxs, init=Symbol[]))
+    if any(i -> i in uheads, uidxs)
+        dups = [ idx for idx in uidxs if idx in uheads ]
+        error(rstrip(msg[1:end-length(", ")]))
+        error("@components: found duplicated symbols between indices and tensors '$(join(dups,','))'")
+    end
+
     return tensorheads, tensoridxs
 end
 
@@ -201,34 +220,17 @@ end
 function parse_scalar_variables(eqs)
     vars = Vector{Symbol}[]
     for eq in eqs
-        lhs = TO.getlhs(eq)
-        scalars = getscalars(lhs)
-        @assert length(scalars) == 0
         rhs = TO.getrhs(eq)
         scalars = getscalars(rhs)
         vs = reduce(vcat, getvariables.(scalars), init=Symbol[])
+        lhs = TO.getlhs(eq)
+        scalars = getscalars(lhs)
+        @assert 0 <= length(scalars) <= 1
+        length(scalars) == 1 && push!(vs, scalars[1])
         unique!(vs)
         push!(vars, vs)
     end
     return vars
-end
-
-
-# Avoid name clashes between indices and tensor heads and scalar variables.
-function resolve_name_clashes!(uidxs, uheads, uscalarvars)
-    # TODO Could use gensym to allow using the same name for tensor heads, index and scalar variable.
-    # Duplicated names between tensors and variables are undesired, but it can be useful for
-    # indices, e.g. a[a,b] = b[a,c] * b[c,a].
-    if any(i -> i in uheads, uidxs) || any(i -> i in uscalarvars, uidxs) || any(h -> h in uscalarvars, uheads)
-        msg = "@components: found duplicated symbols "
-        dups1 = [ idx for idx in uidxs if idx in uheads ]
-        length(dups1) > 0 && (msg *= "between indices and tensors ('$(join(dups1,','))'), ")
-        dups2 = [ idx for idx in uidxs if idx in uscalarvars ]
-        length(dups2) > 0 && (msg *= "between indices and scalar variables ('$(join(dups2,','))'), ")
-        dups3 = [ var for var in uscalarvars if var in uheads ]
-        length(dups3) > 0 && (msg *= "between tensors and scalar variables ('$(join(dups3,','))'), ")
-        error(rstrip(msg[1:end-length(", ")]))
-    end
 end
 
 
@@ -306,13 +308,31 @@ end
 function generate_components_code(eq)
 
     lhs, rhs = TO.getlhs(eq), TO.getrhs(eq)
-    lhs_tensor = TO.decomposetensor.(TO.gettensors(lhs))[1]
-    rhs_tensors = TO.decomposetensor.(TO.gettensors(rhs))
 
-    lhs_head, lhs_idxs = lhs_tensor[1], lhs_tensor[2]
-    vlhs_tensor = :($(Symbol(:v_,lhs_head)) = view($lhs_head, $(lhs_idxs...)))
-    vrhs_tensors = [ :($(Symbol(:v_,head)) = view($head, $(idxs...))) for
-                     (head,idxs,_) in rhs_tensors ]
+    # only extract tensors, because we don't need take views of scalars
+    lhs_head, lhs_idxs = if TO.istensorexpr(lhs)
+        TO.decomposetensor(TO.gettensors(lhs)[1])
+    else
+        lhs, []
+    end
+    rhs_heads_idxs = if TO.istensorexpr(rhs)
+        TO.decomposetensor.(TO.gettensors(rhs))
+    elseif TO.isscalarexpr(rhs)
+        scalars = getscalars(rhs)
+        vars = unique(reduce(vcat, getvariables.(scalars)))
+        [ (v, [], []) for v in vars ]
+    else
+        error("@components: This should not have happened!")
+    end
+
+    # define views of lhs and rhs tensor, if any
+    vlhs_tensor = if TO.istensorexpr(lhs)
+        :($(Symbol(:v_,lhs_head)) = view($lhs_head, $(lhs_idxs...)))
+    else
+        nothing
+    end
+    vrhs_tensors = [ :($(Symbol(:v_,head)) = view($head, $(idxs...)))
+                    for (head,idxs,_) in rhs_heads_idxs if length(idxs) > 0 ]
 
     # we carry out the contraction using TO.@tensor
     # we do so by interpolating/capturing the views of the rhs tensors into a let block
@@ -338,15 +358,24 @@ function generate_components_code(eq)
     # between heads and indices, e.g. A[A,B]; avoiding name clashes between heads and indices
     # might be doable, but its not so easy to also avoid if for scalar variables, e.g.
     # A[A,B] * B, where B is a scalar and index.
-    letargs = [ :($lhs_head = deepcopy($(Symbol(:v_,lhs_head)))) ]
-    append!(letargs, :($head = $(Symbol(:v_,head))) for (head,_,_) in rhs_tensors)
+    #
+    # TODO Generated code is inefficient in terms of number of operations,
+    # because atm any scalar coefficients are always immediately multiplied
+    # with all elements.
+    # Idea: Can we add a field 'coeffs' to SymbolicTensor and then dispatch
+    # Base.:*(coeff, symtensor) to update only the coeff but not immediately
+    # multiply everything? Or is something like a * A done using broadcasting?
+    letargs = [ :($head = $(Symbol(:v_,head))) for (head,idxs,_) in rhs_heads_idxs
+                if length(idxs) > 0 ] # only views
+    if !isnothing(vlhs_tensor)
+        insert!(letargs, 1, :($lhs_head = deepcopy($(Symbol(:v_,lhs_head)))))
+    end
     ret_lhs = Symbol(:ret_, lhs_head)
     let_tensor_expr = :($ret_lhs = let $(letargs...); @tensor $eq; $lhs_head end)
 
     # unpack the results
     # TODO only unpack the independent components of the lhs_tensor
-    # components_expr = :(components = Basic[])
-    components_expr = :(zip($lhs_head[:], $ret_lhs[:]))
+    components_expr = isempty(lhs_idxs) ? :(zip($lhs_head, $ret_lhs)) : :(zip($lhs_head[:], $ret_lhs[:]))
 
     code = quote
         $vlhs_tensor
