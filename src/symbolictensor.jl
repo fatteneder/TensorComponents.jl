@@ -1,8 +1,9 @@
-struct SymbolicTensor{N} <: DenseArray{Basic,N}
+mutable struct SymbolicTensor{N} <: DenseArray{Basic,N}
     head::Symbol
     comp::Array{Basic,N}
     deps::Vector{Basic}
     ideps::Vector{Basic}
+    coeff::Basic
 end
 
 
@@ -12,8 +13,8 @@ end
 # https://docs.julialang.org/en/v1/manual/interfaces/#man-interface-array
 
 Base.size(t::SymbolicTensor) = size(t.comp)
-Base.getindex(t::SymbolicTensor, i::Int) = t.comp[i]
-Base.getindex(t::SymbolicTensor, I::Vararg{Int,N}) where N = t.comp[I...]
+Base.getindex(t::SymbolicTensor, i::Int) = t.comp[i] * t.coeff
+Base.getindex(t::SymbolicTensor, I::Vararg{Int,N}) where N = t.comp[I...] * t.coeff
 Base.setindex!(t::SymbolicTensor, v, i::Int) = t.comp[i] = v
 Base.setindex!(t::SymbolicTensor, v, I::Vararg{Int,N}) where N = t.comp[I...] = v
 
@@ -23,14 +24,17 @@ Base.setindex!(t::SymbolicTensor, v, I::Vararg{Int,N}) where N = t.comp[I...] = 
 #######################################################################
 
 
-function SymbolicTensor(head::Symbol, dims::Int64...)
+function SymbolicTensor(head::Symbol, coeff::Basic, dims::Int64...)
     all(d -> d > 0, dims) || throw(ArgumentError("Dimensions must be positive, found: $(dims...)"))
     cidxs = CartesianIndices(dims)
     comps = [ symbols("$(head)$(join(Tuple(c)))") for c in cidxs ]
     ideps = deepcopy(comps[:])
     deps  = deepcopy(comps[:])
-    return SymbolicTensor(head, comps, deps, ideps)
+    return SymbolicTensor(head, comps, deps, ideps, coeff)
 end
+
+
+SymbolicTensor(head::Symbol, dims::Int64...) = SymbolicTensor(head, Basic(1), dims...)
 
 
 #######################################################################
@@ -38,7 +42,54 @@ end
 #######################################################################
 
 
+# Should be done upstream in SymEgine: https://github.com/symengine/SymEngine.jl/pull/260
 Base.promote_rule(::Type{Bool}, ::Type{Basic}) = Basic
+
+
+# Overload scalar operations *,/,\,+,- to capture common coefficients, if possible.
+for f in (:*, :/, :\)
+    if f !== :\
+        @eval function Base.$f(a::Union{Number,Basic}, t::SymbolicTensor)
+            nt = deepcopy(t)
+            nt.coeff = ($f)(nt.coeff, a)
+            return nt
+        end
+    end
+    if f !== :/
+        @eval function Base.$f(t::SymbolicTensor, a::Union{Number,Basic})
+            nt = deepcopy(t)
+            nt.coeff = ($f)(a, nt.coeff)
+            return nt
+        end
+    end
+end
+
+
+for f in (:+, :-)
+    @eval function Base.$f(t::SymbolicTensor, s::AbstractArray)
+        promote_rule(t,s)
+        nt = deepcopy(t)
+        nt.comp = $f(t.coeff * t.comp, s)
+        return nt
+    end
+    # @eval Base.$f(t::SymbolicTensor, s::AbstractArray) = $f(s,t)
+    @eval function Base.$f(t::SymbolicTensor, s::SymbolicTensor)
+        # promote_rule(t,s)
+        nt = deepcopy(t)
+        if t.coeff == s.coeff
+            nt.comp = $f(t.comp, s.comp)
+        else
+            nt.comp = $f(t.coeff * t.comp, s.coeff * s.comp)
+        end
+        return nt
+    end
+end
+
+
+function Base.show(io::IO, ::MIME"text/plain", t::SymbolicTensor)
+    println(io, t.coeff, " ×")
+    show(io, MIME"text/plain"(), t.comp)
+end
 
 
 function extract_coefficient_matrix(equation, tensor)
