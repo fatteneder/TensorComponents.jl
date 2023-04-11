@@ -160,13 +160,13 @@ function parse_tensor_heads_idxpairs(eqs, idx_names)
         end
         rhs_heads_idxs = if TO.istensorexpr(rhs)
             heads_idxs = TO.decomposetensor.(TO.gettensors(rhs))
-            vars = unique(reduce(vcat, getvariables.(getscalars(rhs)), init=Symbol[]))
-            append!(heads_idxs, (var,[],[]) for var in vars)
+            scalars = unique(reduce(vcat, getscalars.(getcoeffs(rhs)), init=Symbol[]))
+            append!(heads_idxs, (s,[],[]) for s in scalars)
             heads_idxs
         elseif TO.isscalarexpr(rhs)
-            scalars = getscalars(rhs)
-            vars = unique(reduce(vcat, getvariables.(scalars)))
-            [ (v, [], []) for v in vars ]
+            coeffs = getcoeffs(rhs)
+            scalars = unique(reduce(vcat, getscalars.(coeffs)))
+            [ (s, [], []) for s in scalars ]
         else
             error("@components: This should not have happened!")
         end
@@ -213,24 +213,6 @@ function parse_tensor_heads_idxpairs(eqs, idx_names)
     end
 
     return tensorheads, tensoridxs
-end
-
-
-# Return list of all variables appearing in scalar factors that multiply any tensors.
-function parse_scalar_variables(eqs)
-    vars = Vector{Symbol}[]
-    for eq in eqs
-        rhs = TO.getrhs(eq)
-        scalars = getscalars(rhs)
-        vs = reduce(vcat, getvariables.(scalars), init=Symbol[])
-        lhs = TO.getlhs(eq)
-        scalars = getscalars(lhs)
-        @assert 0 <= length(scalars) <= 1
-        length(scalars) == 1 && push!(vs, scalars[1])
-        unique!(vs)
-        push!(vars, vs)
-    end
-    return vars
 end
 
 
@@ -318,9 +300,9 @@ function generate_components_code(eq)
     rhs_heads_idxs = if TO.istensorexpr(rhs)
         TO.decomposetensor.(TO.gettensors(rhs))
     elseif TO.isscalarexpr(rhs)
-        scalars = getscalars(rhs)
-        vars = unique(reduce(vcat, getvariables.(scalars)))
-        [ (v, [], []) for v in vars ]
+        coeffs = getcoeffs(rhs)
+        scalars = unique(reduce(vcat, getscalars.(coeffs)))
+        [ (s, [], []) for s in scalars ]
     else
         error("@components: This should not have happened!")
     end

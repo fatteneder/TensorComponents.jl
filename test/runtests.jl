@@ -170,23 +170,23 @@ end
         all(c -> c in view(sorted_nodes, idx:N), sorted_childs[idx])
     end
 
-    # getscalars
-    @test TC.getscalars(:(a)) == Any[:a]
-    @test TC.getscalars(:(a * A[i,j])) == Any[:(a * true)]
-    @test TC.getscalars(:(2 * a * A[i,j])) == Any[:(2 * a * true)]
-    @test TC.getscalars(:(a * 2 * A[i,j])) == Any[:(a * 2 * true)]
-    @test TC.getscalars(:(x * A[i,j] + B[j,i] * y)) == Any[:(x * true), :(true * y)]
-    @test TC.getscalars(:((x^2 + y)^2 * A[i,j] + B[j,i] * y)) == Any[:((x^2 + y)^2 * true), :(true * y)]
-    @test TC.getscalars(:(cos(α) * A[i,j] + B[j,i] * sin(α))) == Any[:(cos(α) * true), :(true * sin(α))]
+    # getcoeffs
+    @test TC.getcoeffs(:(a)) == Any[:a]
+    @test TC.getcoeffs(:(a * A[i,j])) == Any[:(a * true)]
+    @test TC.getcoeffs(:(2 * a * A[i,j])) == Any[:(2 * a * true)]
+    @test TC.getcoeffs(:(a * 2 * A[i,j])) == Any[:(a * 2 * true)]
+    @test TC.getcoeffs(:(x * A[i,j] + B[j,i] * y)) == Any[:(x * true), :(true * y)]
+    @test TC.getcoeffs(:((x^2 + y)^2 * A[i,j] + B[j,i] * y)) == Any[:((x^2 + y)^2 * true), :(true * y)]
+    @test TC.getcoeffs(:(cos(α) * A[i,j] + B[j,i] * sin(α))) == Any[:(cos(α) * true), :(true * sin(α))]
 
-    # getvariables
-    @test TC.getvariables.(TC.getscalars(:(a))) == [ [:a] ]
-    @test TC.getvariables.(TC.getscalars(:(a * A[i,j]))) == [ [:a] ]
-    @test TC.getvariables.(TC.getscalars(:(2 * a * A[i,j]))) == [ [:a] ]
-    @test TC.getvariables.(TC.getscalars(:(a * 2 * A[i,j]))) == [ [:a] ]
-    @test TC.getvariables.(TC.getscalars(:(x * A[i,j] + B[j,i] * y))) == [ [:x], [:y] ]
-    @test TC.getvariables.(TC.getscalars(:((x^2 + y)^2 * A[i,j] + B[j,i] * y))) == [ [:x, :y], [:y] ]
-    @test TC.getvariables.(TC.getscalars(:(cos(α) * A[i,j] + B[j,i] * sin(α)))) == [ [:α], [:α] ]
+    # getscalars
+    @test TC.getscalars.(TC.getcoeffs(:(a))) == [ [:a] ]
+    @test TC.getscalars.(TC.getcoeffs(:(a * A[i,j]))) == [ [:a] ]
+    @test TC.getscalars.(TC.getcoeffs(:(2 * a * A[i,j]))) == [ [:a] ]
+    @test TC.getscalars.(TC.getcoeffs(:(a * 2 * A[i,j]))) == [ [:a] ]
+    @test TC.getscalars.(TC.getcoeffs(:(x * A[i,j] + B[j,i] * y))) == [ [:x], [:y] ]
+    @test TC.getscalars.(TC.getcoeffs(:((x^2 + y)^2 * A[i,j] + B[j,i] * y))) == [ [:x, :y], [:y] ]
+    @test TC.getscalars.(TC.getcoeffs(:(cos(α) * A[i,j] + B[j,i] * sin(α)))) == [ [:α], [:α] ]
 
 end
 

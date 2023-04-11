@@ -46,14 +46,14 @@ end
 
 # analog to TO.gettensors, but to extract all the scalar factors
 # that multiply a (general)tensor in an expression
-function getscalars(expr)
+function getcoeffs(expr)
     scalars = Any[]
-    _getscalars!(expr, scalars)
+    _getcoeffs!(expr, scalars)
     return scalars
 end
 
 
-function _getscalars!(expr, scalars)
+function _getcoeffs!(expr, scalars)
     if TO.istensor(expr)
         # nothing to do
     elseif TO.isscalarexpr(expr)
@@ -62,7 +62,7 @@ function _getscalars!(expr, scalars)
         _, _, _, s, _ = TO.decomposegeneraltensor(expr)
         push!(scalars, s)
     elseif expr.head === :call && expr.args[1] in (:+,:-,:*,:/)
-        foreach(ex -> _getscalars!(ex, scalars), expr.args[2:end])
+        foreach(ex -> _getcoeffs!(ex, scalars), expr.args[2:end])
     else
         error("Found unknown expression: '$expr'")
     end
@@ -71,19 +71,19 @@ end
 
 
 # variable =^= any Symbol that is used in an expression with head===:call
-function getvariables(ex)
+function getscalars(ex)
     vars = Symbol[]
-    _getvariables!(ex, vars)
+    _getscalars!(ex, vars)
     return vars
 end
 
 
-_getvariables!(s::Symbol, vars) = push!(vars, s)
-_getvariables!(s::Number, vars) = nothing
-function _getvariables!(ex::Expr, vars)
+_getscalars!(s::Symbol, vars) = push!(vars, s)
+_getscalars!(s::Number, vars) = nothing
+function _getscalars!(ex::Expr, vars)
     if ex.head === :call
         foreach(ex.args[2:end]) do a
-            _getvariables!(a, vars)
+            _getscalars!(a, vars)
         end
     else
         error("Failed to extract variables from '$ex'")
