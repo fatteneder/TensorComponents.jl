@@ -132,9 +132,8 @@ function parse_index_definitions(exprs)
         end
     end
 
-    uindices = unique(indices)
-    if length(indices) != length(uindices)
-        dups = [ u for u in uindices if count(i -> i === u, indices) > 1 ]
+    if !allunique(indices)
+        dups = [ u for u in unique(indices) if count(i -> i === u, indices) > 1 ]
         error("@components: @index: an index can only be defined once, found multiple definitions for '$(join(dups,' '))'")
     end
 
