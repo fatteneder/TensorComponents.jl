@@ -204,7 +204,7 @@ end
 
 @testset "SymbolicTensor" begin
 
-    for N = 2:4
+    for N = 2:5
         Riem = TC.SymbolicTensor(:R,N,N,N,N)
         red_Riem = reduce_components_riemann_tensor(Riem)
         ideps = [ SymEngine.free_symbols(R) for R in red_Riem[:] ]

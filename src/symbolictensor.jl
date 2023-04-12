@@ -150,7 +150,7 @@ function resolve_dependents(tensor, equation)
     # be slow, because it must call into SymEngine for every element.
     # red_coeffs is usually sparse, so we exploit that here to speed things up.
     red_eqs = Basic[]
-    @time for row in eachrow(red_coeffs)
+    for row in eachrow(red_coeffs)
         eq = Basic(0)
         for (i,c) in enumerate(row)
             isapprox(c, 0) && continue
