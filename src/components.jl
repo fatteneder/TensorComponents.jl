@@ -15,7 +15,7 @@ function components(expr)
     uidxs, idx_dims = parse_index_definitions(ex_idxs)
 
     # TODO Implement
-    # sym_tensor_heads, sym_lhs, sym_rhs = parse_symmetry_definitions(exprs)
+    sym_heads, sym_idxpairs = parse_symmetry_definitions(ex_sym)
 
     # parse tensor heads and all index pairs that appear with them (for each equation)
     # In this step we also
@@ -83,7 +83,7 @@ function decompose_expressions(exprs)
         matched && (push!(idxs, ex); true) && continue
         matched = TO.isassignment(ex)
         matched && (push!(eqs, ex); true) && continue
-        matched = MacroTools.@capture(ex, @symmetry __)
+        matched = MacroTools.@capture(ex, @symmetry sym__)
         matched && (push!(syms, ex); true) && continue
 
         @warn "@components: found unknown expression '$ex', skipping ..."
@@ -138,6 +138,62 @@ function parse_index_definitions(exprs)
     end
 
     return indices, dims
+end
+
+
+# Determine the tensor and all occuring index permutations used in the
+# provided symmetry relation which like look
+# ```julia
+#     @symmetry A[i,j] = A[j,i]
+# ```
+# A symmetry relation can only involve one tensor and must be linear in it.
+function parse_symmetry_definitions(exprs)
+
+    heads, idxpairs = Symbol[], Vector{Vector{Any}}[]
+    for ex in exprs
+
+        # assuming all exprs start with @index
+        MacroTools.@capture(ex, @symmetry args__)
+
+        if length(args) != 1 || !TO.isassignment(args[1])
+            error("@components: @symmtery: expected something like '@symmetry A[i,j] = A[i,j]', found '$ex'")
+        end
+
+        lhs, rhs = TO.getlhs(args[1]), TO.getrhs(args[1])
+
+        # TODO Can we support something like T[i,j] = k?
+        if !TO.istensorexpr(lhs) || !TO.istensorexpr(rhs)
+            error("@components: @symmtery: expected symmetry relation for a tensor's components, e.g. omething like '@symmetry A[i,j] = A[i,j]', found '$ex'")
+        end
+
+        ts_lhs, ts_rhs = TO.gettensorobjects(lhs), TO.gettensorobjects(rhs)
+        ts = unique!(reduce(vcat, (ts_lhs, ts_rhs)))
+        if length(ts) != 1
+            error("@components: @symmetry: a relation can only involve one tensor, found multiple ones '$(join(ts,','))' in '$ex'")
+        end
+        push!(heads, ts[1])
+
+        allidxs_lhs, allidxs_rhs = TO.getallindices(lhs), TO.getallindices(rhs)
+        idxs_lhs, idxs_rhs       = TO.getindices(lhs), TO.getindices(rhs)
+
+        if length(allidxs_lhs) != length(allidxs_rhs) != length(idxs_lhs) != length(idxs_rhs)
+            error("@components: @symmetry: inconsistent index pattern found in '$ex'")
+        end
+
+        heads_idxs_lhs = TO.decomposetensor.(TO.gettensors(lhs))
+        heads_idxs_rhs = TO.decomposetensor.(TO.gettensors(rhs))
+        pairs = Vector{Any}[]
+        foreach( ((_,idxs,_),) -> push!(pairs, idxs), heads_idxs_lhs)
+        foreach( ((_,idxs,_),) -> push!(pairs, idxs), heads_idxs_rhs)
+
+        if !allequal(length.(pairs))
+            error("@components: @symmetry: inconsistent index pattern found in '$ex'")
+        end
+
+        push!(idxpairs, pairs)
+    end
+
+    return heads, idxpairs
 end
 
 
