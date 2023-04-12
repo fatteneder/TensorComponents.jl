@@ -42,12 +42,12 @@ const TO = TensorOperations
     @test (eval(@components begin
         a = b + 1
     end); true)
-    # # Impose symmetries on tensors to reduce number of operations
-    # @test (eval(@components begin
-    #     @index i, j = 4
-    #     @symmetry A[i,j] = A[j,i]
-    #     A[i,j] = a[i] * a[j]
-    # end); true)
+    # Impose symmetries on tensors to reduce number of operations
+    @test (eval(@components begin
+        @index i, j = 4
+        @symmetry A[i,j] = A[j,i]
+        A[i,j] = a[i] * a[j]
+    end); true)
 
 
     ### invalid use
@@ -151,6 +151,31 @@ end
     @test_throws ErrorException TC.components(quote @index a = 0:4 end)
     @test_throws ErrorException TC.components(quote @index a, b, c = -1:-12 end)
     @test_throws ErrorException TC.components(quote @index a, d, e, f = -1:2 end)
+
+end
+
+
+@testset "@symmetry" begin
+
+    ### invalid use
+
+    # no indices
+    @test_throws ErrorException TC.components(quote @symmetry end)
+    # no assignment
+    @test_throws ErrorException TC.components(quote @symmetry A[i,j] end)
+    @test_throws ErrorException TC.components(quote @symmetry A[i,j] * B[i,j] end)
+    # more than one tensor
+    @test_throws ErrorException TC.components(quote @symmetry A[i,j] = B[i,j] end)
+    # no indices
+    @test_throws ErrorException TC.components(quote @symmetry A = B end)
+    # no indices on one side
+    # TODO Fix this
+    @test_throws ErrorException TC.components(quote @symmetry A[i,i] = B end)
+    @test_throws ErrorException TC.components(quote @symmetry A = B[i,i] end)
+    # inconsistent index pattern
+    @test_throws ErrorException TC.components(quote @symmetry A[i,j,k] = B[k] end)
+    # TODO Fix this
+    @test_throws ErrorException TC.components(quote @symmetry A[i,j] = B[i,j,k,k] end)
 
 end
 
