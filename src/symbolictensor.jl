@@ -141,13 +141,23 @@ function resolve_dependents(tensor, equation)
     # reduce coeff matrix to row echelon form
     # this is slow because it uses Gaussian elimination
     RowEchelon.rref!(coeffs)
-    echelon_coeffs = convert.(Int64, round.(coeffs))
+    echelon_coeffs = convert.(Rational{Int64}, coeffs)
     red_coeffs = view(echelon_coeffs, 1:rk, :)
 
     # re-assemble equations
     v_tensor = view(tensor, :)
-    # this is slow
-    red_eqs = [ dot(v_tensor, row) for row in eachrow(red_coeffs) ]
+    # assembling using a scalar product (dot) between v_tensor and each row of red_coeffs can
+    # be slow, because it must call into SymEngine for every element.
+    # red_coeffs is usually sparse, so we exploit that here to speed things up.
+    red_eqs = Basic[]
+    @time for row in eachrow(red_coeffs)
+        eq = Basic(0)
+        for (i,c) in enumerate(row)
+            isapprox(c, 0) && continue
+            eq += c * v_tensor[i]
+        end
+        push!(red_eqs, eq)
+    end
 
     # determine dependent variables by solving equations one after another
     deps = SymEngine.Basic[]
