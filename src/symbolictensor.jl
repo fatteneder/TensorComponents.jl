@@ -150,7 +150,7 @@ function resolve_dependents(tensor, equation)
     # be slow, because it must call into SymEngine for every element.
     # red_coeffs is usually sparse, so we exploit that here to speed things up.
     red_eqs = Basic[]
-    for row in eachrow(red_coeffs)
+    @time for row in eachrow(red_coeffs)
         eq = Basic(0)
         for (i,c) in enumerate(row)
             isapprox(c, 0) && continue
@@ -207,12 +207,13 @@ function resolve_dependents(tensor, equation)
 
     # assemble reduced tensor
     redtensor = deepcopy(tensor)
-    # utilize the Dict overload of subs to handle all subsitutions at once to SymEngine
-    subsdict_nzeros = Dict(deps .=> subs)
-    subsdict_zeros  = Dict(deps_zeros .=> 0)
     for idx = 1:length(redtensor)
-        redtensor[idx] = SymEngine.subs(redtensor[idx], subsdict_nzeros)
-        redtensor[idx] = SymEngine.subs(redtensor[idx], subsdict_zeros)
+        for (d, s) in zip(deps, subs)
+            redtensor[idx] = SymEngine.subs(redtensor[idx], d, s)
+        end
+        for d in deps_zeros
+            redtensor[idx] = SymEngine.subs(redtensor[idx], d, 0)
+        end
         redtensor[idx] = SymEngine.expand(redtensor[idx])
     end
 
