@@ -10,29 +10,22 @@ function components(expr)
     exprs = expr.args
 
     ex_idxs, ex_eqs, ex_sym = decompose_expressions(exprs)
+    def_idxs, def_idx_dims = parse_index_definitions(ex_idxs)
+    eq_heads, eq_idxpairs = parse_heads_idxpairs_equations(ex_eqs)
+    sym_heads, sym_idxpairs = parse_heads_idxpairs_symmetries(ex_sym)
 
-    defined_idxs, idx_dims = parse_index_definitions(ex_idxs)
-
-    # parse tensor heads and all index pairs that appear with them (for each equation)
-    # In this step we also
-    # - verify that tensors have consistent rank in all eqs,
-    # - verify that all indices appearing in tensor statements have been defined with @index.
-    heads, idxpairs = parse_tensor_heads_idxpairs(ex_eqs)
-
-    sym_heads, sym_idxpairs = parse_symmetry_definitions(ex_sym)
-
-    verify_tensors_indices(heads, idxpairs, sym_heads, sym_idxpairs, defined_idxs)
+    verify_tensors_indices(eq_heads, eq_idxpairs, sym_heads, sym_idxpairs, def_idxs)
 
     # determine independent tensors; relies on tensors having consistent ranks
     idep_heads = determine_independents(ex_eqs)
 
     # for each tensor determine all indices used in every slot
-    uheads, grouped_idxs = group_indices_by_slot(heads, idxpairs)
+    uheads, grouped_idxs = group_indices_by_slot(eq_heads, eq_idxpairs)
 
     ### generate code
 
     # define indices
-    code_idxs = [ :($name = TensorComponents.Index($dim)) for (dim,name) in zip(idx_dims, defined_idxs) ]
+    code_idxs = [ :($name = TensorComponents.Index($dim)) for (dim,name) in zip(def_idx_dims, def_idxs) ]
 
     # define tensors and scalars
     code_tensors = Expr[]
@@ -147,7 +140,9 @@ end
 #     @symmetry A[i,j] = A[j,i]
 # ```
 # A symmetry relation can only involve one tensor and must be linear in it.
-function parse_symmetry_definitions(exprs)
+#
+# We verify here that tensors are all used with consistent rank.
+function parse_heads_idxpairs_symmetries(exprs)
 
     heads, idxpairs = Symbol[], Vector{Any}[]
     for ex in exprs
@@ -203,7 +198,8 @@ end
 
 
 # Return list of all tensor heads and a list of the indices they are used with.
-function parse_tensor_heads_idxpairs(eqs)
+# We verify here that tensors are all used with consistent rank.
+function parse_heads_idxpairs_equations(eqs)
 
     # record linenrs for debugging
     tensorheads, tensoridxs, linenrs = Symbol[], Vector{Any}[], Int[]
