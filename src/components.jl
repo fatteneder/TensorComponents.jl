@@ -14,13 +14,15 @@ function components(expr)
     eq_heads, eq_idxpairs = parse_heads_idxpairs_equations(ex_eqs)
     sym_heads, sym_idxpairs = parse_heads_idxpairs_symmetries(ex_sym)
 
-    verify_tensors_indices(eq_heads, eq_idxpairs, sym_heads, sym_idxpairs, def_idxs)
+    allheads, allidxpairs = vcat(eq_heads, sym_heads), vcat(eq_idxpairs, sym_idxpairs)
+
+    verify_tensors_indices(allidxpairs, def_idxs)
 
     # determine independent tensors; relies on tensors having consistent ranks
     idep_heads = determine_independents(ex_eqs)
 
     # for each tensor determine all indices used in every slot
-    uheads, grouped_idxs = group_indices_by_slot(eq_heads, eq_idxpairs)
+    uheads, grouped_idxs = group_indices_by_slot(allheads, allidxpairs)
 
     ### generate code
 
@@ -214,6 +216,7 @@ function parse_heads_idxpairs_equations(eqs)
         else
             error("@components: This should not have happened!")
         end
+
         rhs_heads_idxs = if TO.istensorexpr(rhs)
             heads_idxs = TO.decomposetensor.(TO.gettensors(rhs))
             scalars = unique(reduce(vcat, getscalars.(getcoeffs(rhs)), init=Symbol[]))
@@ -263,9 +266,9 @@ function parse_heads_idxpairs_equations(eqs)
 end
 
 
-function verify_tensors_indices(eq_heads, eq_idxpairs, sym_heads, sym_idxpairs, defined_idxs)
+function verify_tensors_indices(idxpairs, defined_idxs)
 
-    for idxpairs in (eq_idxpairs, sym_idxpairs), idxs in idxpairs, i in idxs
+    for idxs in idxpairs, i in idxs
         if !(i in defined_idxs)
             error("@components: undefined indices '$undefined_idxs'; you need to declare them with @index first")
         end
