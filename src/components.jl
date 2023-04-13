@@ -11,17 +11,17 @@ function components(expr)
 
     ex_idxs, ex_eqs, ex_sym = decompose_expressions(exprs)
 
-    # checks that indices are *Symbols* and their index range is valid
-    uidxs, idx_dims = parse_index_definitions(ex_idxs)
-
-    # TODO Implement
-    sym_heads, sym_idxpairs = parse_symmetry_definitions(ex_sym)
+    defined_idxs, idx_dims = parse_index_definitions(ex_idxs)
 
     # parse tensor heads and all index pairs that appear with them (for each equation)
     # In this step we also
     # - verify that tensors have consistent rank in all eqs,
     # - verify that all indices appearing in tensor statements have been defined with @index.
-    heads, idxpairs = parse_tensor_heads_idxpairs(ex_eqs, uidxs)
+    heads, idxpairs = parse_tensor_heads_idxpairs(ex_eqs)
+
+    sym_heads, sym_idxpairs = parse_symmetry_definitions(ex_sym)
+
+    verify_tensors_indices(heads, idxpairs, sym_heads, sym_idxpairs, defined_idxs)
 
     # determine independent tensors; relies on tensors having consistent ranks
     idep_heads = determine_independents(ex_eqs)
@@ -32,16 +32,16 @@ function components(expr)
     ### generate code
 
     # define indices
-    def_idxs = [ :($name = TensorComponents.Index($dim)) for (dim,name) in zip(idx_dims, uidxs) ]
+    code_idxs = [ :($name = TensorComponents.Index($dim)) for (dim,name) in zip(idx_dims, defined_idxs) ]
 
     # define tensors and scalars
-    def_tensors = Expr[]
+    code_tensors = Expr[]
     for (head, gidxs) in zip(uheads, grouped_idxs)
         if length(gidxs) == 0
-            push!(def_tensors, :($head = SymEngine.symbols($(QuoteNode(head)))))
+            push!(code_tensors, :($head = SymEngine.symbols($(QuoteNode(head)))))
         else
             slotdims = [ :(TensorComponents.slotdim($(idxs...))) for idxs in gidxs ]
-            push!(def_tensors, :($head = TensorComponents.SymbolicTensor($(QuoteNode(head)), $(slotdims...))))
+            push!(code_tensors, :($head = TensorComponents.SymbolicTensor($(QuoteNode(head)), $(slotdims...))))
         end
     end
 
@@ -49,14 +49,14 @@ function components(expr)
     # 1. setup views of tensors
     # 2. forward contraction to TensorOperations.@tensor macro
     # 3. gather output
-    def_components = [ generate_components_code(eq) for eq in ex_eqs ]
+    code_components = [ generate_components_code(eq) for eq in ex_eqs ]
 
     code = quote
-        $(def_idxs...)
-        $(def_tensors...)
+        $(code_idxs...)
+        $(code_tensors...)
 
         components = Tuple{Basic,Basic}[]
-        $([ :(comps = $def; append!(components, comps)) for def in def_components ]...)
+        $([ :(comps = $def; append!(components, comps)) for def in code_components ]...)
 
         return components
     end
@@ -149,7 +149,7 @@ end
 # A symmetry relation can only involve one tensor and must be linear in it.
 function parse_symmetry_definitions(exprs)
 
-    heads, idxpairs = Symbol[], Vector{Vector{Any}}[]
+    heads, idxpairs = Symbol[], Vector{Any}[]
     for ex in exprs
 
         # assuming all exprs start with @index
@@ -171,7 +171,7 @@ function parse_symmetry_definitions(exprs)
         if length(ts) != 1
             error("@components: @symmetry: a relation can only involve one tensor, found multiple ones '$(join(ts,','))' in '$ex'")
         end
-        push!(heads, ts[1])
+        head = ts[1]
 
         allidxs_lhs, allidxs_rhs = TO.getallindices(lhs), TO.getallindices(rhs)
         idxs_lhs, idxs_rhs       = TO.getindices(lhs), TO.getindices(rhs)
@@ -182,15 +182,20 @@ function parse_symmetry_definitions(exprs)
 
         heads_idxs_lhs = TO.decomposetensor.(TO.gettensors(lhs))
         heads_idxs_rhs = TO.decomposetensor.(TO.gettensors(rhs))
-        pairs = Vector{Any}[]
-        foreach( ((_,idxs,_),) -> push!(pairs, idxs), heads_idxs_lhs)
-        foreach( ((_,idxs,_),) -> push!(pairs, idxs), heads_idxs_rhs)
 
-        if !allequal(length.(pairs))
+        start = length(length(idxpairs))
+        for heads_idxs in (heads_idxs_lhs, heads_idxs_rhs)
+            for (_,idxs,_) in heads_idxs
+                push!(heads, head)
+                push!(idxpairs, idxs)
+            end
+        end
+        stop = length(length(idxpairs))
+
+        if !allequal(length.(view(idxpairs, start:stop)))
             error("@components: @symmetry: inconsistent index pattern found in '$ex'")
         end
 
-        push!(idxpairs, pairs)
     end
 
     return heads, idxpairs
@@ -198,7 +203,7 @@ end
 
 
 # Return list of all tensor heads and a list of the indices they are used with.
-function parse_tensor_heads_idxpairs(eqs, idx_names)
+function parse_tensor_heads_idxpairs(eqs)
 
     # record linenrs for debugging
     tensorheads, tensoridxs, linenrs = Symbol[], Vector{Any}[], Int[]
@@ -245,13 +250,6 @@ function parse_tensor_heads_idxpairs(eqs, idx_names)
                     end
                 end
 
-                # make sure all indices used were defined with @index
-                for idx in idxs
-                    if !(idx in idx_names) && !(idx isa Integer)
-                        error("@components: unknown index '$idx' found in '$(eqs[nr])'; you need to declare '$idx' with @index first")
-                    end
-                end
-
                 push!(tensorheads, head)
                 push!(tensoridxs, idxs)
                 push!(linenrs, nr)
@@ -269,6 +267,18 @@ function parse_tensor_heads_idxpairs(eqs, idx_names)
 
     return tensorheads, tensoridxs
 end
+
+
+function verify_tensors_indices(eq_heads, eq_idxpairs, sym_heads, sym_idxpairs, defined_idxs)
+
+    for idxpairs in (eq_idxpairs, sym_idxpairs), idxs in idxpairs, i in idxs
+        if !(i in defined_idxs)
+            error("@components: undefined indices '$undefined_idxs'; you need to declare them with @index first")
+        end
+    end
+
+end
+
 
 
 # Walk through equations and determine tensors which we have not been computed before
