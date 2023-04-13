@@ -227,33 +227,31 @@ function parse_heads_idxpairs_equations(eqs)
             error("@components: This should not have happened!")
         end
 
-        for heads_idxs in (lhs_heads_idxs, rhs_heads_idxs)
-            for (head, idxs, _) in heads_idxs
+        for heads_idxs in (lhs_heads_idxs, rhs_heads_idxs), (head, idxs, _) in heads_idxs
 
-                # check if we already encountered this tensor
-                # and verify that its rank did not change
-                i = findfirst(h -> h===head, tensorheads)
-                if !isnothing(i)
-                    prev_idxs = tensoridxs[i]
-                    if length(prev_idxs) != length(idxs)
-                        prev_eq = eqs[linenrs[i]]
-                        # TODO What if inconsistency appears on the same line?
-                        error("""@components: found tensor '$head' with inconsistent rank, compare
-                                $prev_eq
-                                  vs.
-                                $eq
-                              """)
-                    end
+            # check if we already encountered this tensor
+            # and verify that its rank did not change
+            i = findfirst(h -> h===head, tensorheads)
+            if !isnothing(i)
+                prev_idxs = tensoridxs[i]
+                if length(prev_idxs) != length(idxs)
+                    prev_eq = eqs[linenrs[i]]
+                    # TODO What if inconsistency appears on the same line?
+                    error("""@components: found tensor '$head' with inconsistent rank, compare
+                            $prev_eq
+                              vs.
+                            $eq
+                          """)
                 end
-
-                push!(tensorheads, head)
-                push!(tensoridxs, idxs)
-                push!(linenrs, nr)
             end
+
+            push!(tensorheads, head)
+            push!(tensoridxs, idxs)
+            push!(linenrs, nr)
         end
     end
 
-    uheads = unique!(tensorheads)
+    uheads = unique(tensorheads)
     uidxs = unique(reduce(vcat, tensoridxs, init=Symbol[]))
     if any(i -> i in uheads, uidxs)
         dups = [ idx for idx in uidxs if idx in uheads ]
