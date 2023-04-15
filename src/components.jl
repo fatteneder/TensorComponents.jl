@@ -10,8 +10,8 @@ function components(expr)
     exprs = expr.args
 
     ex_idxs, ex_eqs, ex_sym = decompose_expressions(exprs)
-    def_idxs, def_idx_dims = parse_index_definitions(ex_idxs)
-    eq_heads, eq_idxpairs = parse_heads_idxpairs_equations(ex_eqs)
+    def_idxs, def_idx_dims  = parse_index_definitions(ex_idxs)
+    eq_heads, eq_idxpairs   = parse_heads_idxpairs_equations(ex_eqs)
     sym_heads, sym_idxpairs = parse_heads_idxpairs_symmetries(ex_sym)
 
     allheads, allidxpairs = vcat(eq_heads, sym_heads), vcat(eq_idxpairs, sym_idxpairs)
@@ -27,16 +27,16 @@ function components(expr)
     ### generate code
 
     # define indices
-    code_idxs = [ :($name = TensorComponents.Index($dim)) for (dim,name) in zip(def_idx_dims, def_idxs) ]
+    code_def_idxs = [ :($name = TensorComponents.Index($dim)) for (dim,name) in zip(def_idx_dims, def_idxs) ]
 
     # define tensors and scalars
-    code_tensors = Expr[]
+    code_def_tensors = Expr[]
     for (head, gidxs) in zip(uheads, grouped_idxs)
         if length(gidxs) == 0
-            push!(code_tensors, :($head = SymEngine.symbols($(QuoteNode(head)))))
+            push!(code_def_tensors, :($head = SymEngine.symbols($(QuoteNode(head)))))
         else
             slotdims = [ :(TensorComponents.slotdim($(idxs...))) for idxs in gidxs ]
-            push!(code_tensors, :($head = TensorComponents.SymbolicTensor($(QuoteNode(head)), $(slotdims...))))
+            push!(code_def_tensors, :($head = TensorComponents.SymbolicTensor($(QuoteNode(head)), $(slotdims...))))
         end
     end
 
@@ -44,15 +44,13 @@ function components(expr)
     # 1. setup views of tensors
     # 2. forward contraction to TensorOperations.@tensor macro
     # 3. gather output
-    code_components = [ generate_components_code(eq) for eq in ex_eqs ]
+    code_unroll_eqs = [ generate_code_unroll_equations(eq) for eq in ex_eqs ]
 
     code = quote
-        $(code_idxs...)
-        $(code_tensors...)
-
+        $(code_def_idxs...)
+        $(code_def_tensors...)
         components = Tuple{Basic,Basic}[]
-        $([ :(comps = $def; append!(components, comps)) for def in code_components ]...)
-
+        $([ :(comps = $def; append!(components, comps)) for def in code_unroll_eqs ]...)
         return components
     end
 
@@ -149,6 +147,8 @@ function parse_heads_idxpairs_symmetries(exprs)
     heads, idxpairs = Symbol[], Vector{Any}[]
     for ex in exprs
 
+        # TODO Do this capturing only in decompose_expressions and emit a warning of an
+        # @index or @symmetry statement is empty
         # assuming all exprs start with @index
         MacroTools.@capture(ex, @symmetry args__)
 
@@ -349,7 +349,31 @@ function group_indices_by_slot(heads, idxpairs)
 end
 
 
-function generate_components_code(eq)
+# we carry out the contraction using TO.@tensor
+# we do so by interpolating/capturing the views of the rhs tensors into a let block
+# for the lhs tensor we capture a deepcopy of its view and then return it
+#
+# E.g.
+#   A[i,j] = B[i,j,k] * C[k]
+# translates to
+#   v_A = view(...)
+#   ...
+#   ret_A = let A = deepcopy(v_A), B = v_B, C = v_C
+#       @tensor A[i,j] = B[i,j,k] * C[k]
+#       A
+#   end
+#
+# using a let block here has sevaral advantages:
+# - we can forward the equation directly to @tensor, so we get the full stack trace
+# from TensorOperations in case there is a problem with index contractions
+# - we don't have to replace tensor heads with their view'd symbols; @tensor will
+# see the equation that was actually entered
+# - in fact, one can not even (easily) use MacroTools.pre/postwalk to replace the
+# tensor heads alone and ignore indices, which is needed if there are name clashes
+# between heads and indices, e.g. A[A,B]; avoiding name clashes between heads and indices
+# might be doable, but its not so easy to also avoid if for scalar variables, e.g.
+# A[A,B] * B, where B is a scalar and index.
+function generate_code_unroll_equations(eq)
 
     lhs, rhs = TO.getlhs(eq), TO.getrhs(eq)
 
@@ -378,37 +402,6 @@ function generate_components_code(eq)
     vrhs_tensors = [ :($(Symbol(:v_,head)) = view($head, $(idxs...)))
                     for (head,idxs,_) in rhs_heads_idxs if length(idxs) > 0 ]
 
-    # we carry out the contraction using TO.@tensor
-    # we do so by interpolating/capturing the views of the rhs tensors into a let block
-    # for the lhs tensor we capture a deepcopy of its view and then return it
-    #
-    # E.g.
-    #   A[i,j] = B[i,j,k] * C[k]
-    # translates to
-    #   v_A = view(...)
-    #   ...
-    #   ret_A = let A = deepcopy(v_A), B = v_B, C = v_C
-    #       @tensor A[i,j] = B[i,j,k] * C[k]
-    #       A
-    #   end
-    #
-    # using a let block here has sevaral advantages:
-    # - we can forward the equation directly to @tensor, so we get the full stack trace
-    # from TensorOperations in case there is a problem with index contractions
-    # - we don't have to replace tensor heads with their view'd symbols; @tensor will
-    # see the equation that was actually entered
-    # - in fact, one can not even (easily) use MacroTools.pre/postwalk to replace the
-    # tensor heads alone and ignore indices, which is needed if there are name clashes
-    # between heads and indices, e.g. A[A,B]; avoiding name clashes between heads and indices
-    # might be doable, but its not so easy to also avoid if for scalar variables, e.g.
-    # A[A,B] * B, where B is a scalar and index.
-    #
-    # TODO Generated code is inefficient in terms of number of operations,
-    # because atm any scalar coefficients are always immediately multiplied
-    # with all elements.
-    # Idea: Can we add a field 'coeffs' to SymbolicTensor and then dispatch
-    # Base.:*(coeff, symtensor) to update only the coeff but not immediately
-    # multiply everything? Or is something like a * A done using broadcasting?
     letargs = [ :($head = $(Symbol(:v_,head))) for (head,idxs,_) in rhs_heads_idxs
                 if length(idxs) > 0 ] # only views
     if !isnothing(vlhs_tensor)
