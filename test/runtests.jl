@@ -88,6 +88,11 @@ const TO = TensorOperations
         @index i, j = 4
         A[a,i] = B[a,i]
     end)
+    # reports an inconsinstency in rank by us, not @tensor
+    @test_throws ErrorException TC.components(quote
+        @index i, j, k = 4
+        A[i,j] = A[i,j,k]
+    end)
     # undefined indices with multiple equations
     @test_throws ErrorException TC.components(quote
         @index i, j, k = 4

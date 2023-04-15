@@ -249,12 +249,15 @@ function parse_heads_idxpairs_equations(eqs)
                 prev_idxs = tensoridxs[i]
                 if length(prev_idxs) != length(idxs)
                     prev_eq = eqs[linenrs[i]]
-                    # TODO What if inconsistency appears on the same line?
-                    error("""@components: found tensor '$head' with inconsistent rank, compare
-                            $prev_eq
-                              vs.
-                            $eq
-                          """)
+                    if nr == i # inconsistenchy occured on the same line
+                        error("@components: found tensor '$head' with inconsistent rank, in '$eq'")
+                    else
+                        error("""@components: found tensor '$head' with inconsistent rank, compare
+                                $prev_eq
+                                  vs.
+                                $eq
+                              """)
+                    end
                 end
             end
 
