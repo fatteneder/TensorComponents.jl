@@ -54,7 +54,10 @@ function components(expr)
         $(code_def_tensors...)
         $(code_resolve_syms...)
         components = Tuple{Basic,Basic}[]
-        $([ :(comps = $def; append!(components, comps)) for def in code_unroll_eqs ]...)
+        $([ quote
+               comps = $def
+               append!(components, comps)
+            end for def in code_unroll_eqs ]...)
         components
     end
 
@@ -419,15 +422,24 @@ function generate_code_unroll_equations(eq)
     ret_lhs = Symbol(:ret_, lhs_head)
     let_tensor_expr = :($ret_lhs = let $(letargs...); @tensor $eq; $lhs_head end)
 
-    ulhs_head = Symbol(:u_,lhs_head)
+    # extract independent tensor components, if any
+    extract_indeps = if !TO.isscalarexpr(lhs)
+        ulhs_head = Symbol(:u_,lhs_head)
+        quote
+            $ulhs_head = unique($lhs_head)
+            idx_indeps = [ findfirst(h -> h == u, $lhs_head) for u in $ulhs_head ]
+            zip(view($lhs_head, idx_indeps), view($ret_lhs, idx_indeps))
+        end
+    else
+        :(zip($lhs_head, $ret_lhs))
+    end
+
     code = quote
         let
             $vlhs_tensor
             $(vrhs_tensors...)
             $let_tensor_expr
-            $ulhs_head = unique($lhs_head)
-            idx_indeps = [ findfirst(h -> h == u, $lhs_head) for u in $ulhs_head ]
-            zip(view($lhs_head, idx_indeps), view($ret_lhs, idx_indeps))
+            $extract_indeps
         end
     end
 

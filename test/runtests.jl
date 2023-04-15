@@ -38,15 +38,14 @@ const TO = TensorOperations
         A[i,j] = a * B[i,j]
         C[i,j] = cos(α) * D[i,j] + sin(β) * E[i,j]
     end)); true)
-    # TODO Support scalar LHSs.
+    # can also use purely scalar equations
     @test (eval(@components begin
         a = b + 1
     end); true)
-    # Impose symmetries on tensors to reduce number of operations
+    # can also use purely scalar equations
     @test (eval(@components begin
-        @index i, j = 4
-        @symmetry A[i,j] = A[j,i]
-        A[i,j] = a[i] * a[j]
+        @index i = 4
+        a = A[i,i]
     end); true)
 
 
@@ -107,6 +106,12 @@ const TO = TensorOperations
     @test_throws TO.IndexError eval(TC.components(quote
         @index i, j, k = 3
         A[i,j] = B[i,j] + C[k]
+    end))
+    # TODO Fix this: can't assign to lhs with contractions
+    # @test_throws ErrorException eval(TC.components(quote
+    @test_broken eval(TC.components(quote
+        @index i = 3
+        A[i,i] = a
     end))
 
 end
