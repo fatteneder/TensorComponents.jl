@@ -59,7 +59,7 @@ function components(expr)
     end
 
     code = MacroTools.prewalk(MacroTools.rmlines, code)
-    code = MacroTools.prewalk(MacroTools.rmlines, code)
+    code = MacroTools.flatten(code)
 
     return code
 end
@@ -417,15 +417,16 @@ function generate_code_unroll_equations(eq)
     ret_lhs = Symbol(:ret_, lhs_head)
     let_tensor_expr = :($ret_lhs = let $(letargs...); @tensor $eq; $lhs_head end)
 
-    # unpack the results
-    # TODO only unpack the independent components of the lhs_tensor
-    components_expr = isempty(lhs_idxs) ? :(zip($lhs_head, $ret_lhs)) : :(zip($lhs_head[:], $ret_lhs[:]))
-
+    ulhs_head = Symbol(:u_,lhs_head)
     code = quote
-        $vlhs_tensor
-        $(vrhs_tensors...)
-        $let_tensor_expr
-        $components_expr
+        let
+            $vlhs_tensor
+            $(vrhs_tensors...)
+            $let_tensor_expr
+            $ulhs_head = unique($lhs_head)
+            idx_indeps = [ findfirst(h -> h == u, $lhs_head) for u in $ulhs_head ]
+            zip(view($lhs_head, idx_indeps), view($ret_lhs, idx_indeps))
+        end
     end
 
     return code
