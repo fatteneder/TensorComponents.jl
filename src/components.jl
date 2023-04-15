@@ -16,7 +16,7 @@ function components(expr)
 
     allheads, allidxpairs = vcat(eq_heads, sym_heads), vcat(eq_idxpairs, sym_idxpairs)
 
-    verify_tensors_indices(allidxpairs, def_idxs)
+    verify_tensors_indices(allheads, allidxpairs, def_idxs)
 
     # determine independent tensors; relies on tensors having consistent ranks
     idep_heads = determine_independents(ex_eqs)
@@ -272,11 +272,16 @@ function parse_heads_idxpairs_equations(eqs)
 end
 
 
-function verify_tensors_indices(idxpairs, defined_idxs)
-    allidxs = reduce(vcat,idxpairs,init=Symbol[])
+function verify_tensors_indices(tensorheads, idxpairs, defined_idxs)
+    allidxs = unique(reduce(vcat,idxpairs,init=Symbol[]))
     undefined_idxs = [ idx for idx in allidxs if !(idx in defined_idxs) ]
     if !isempty(undefined_idxs)
         error("@components: undefined indices '$undefined_idxs'; you need to declare them with @index first")
+    end
+    allheads = unique(tensorheads)
+    unused_idxs_which_clash = [ idx for idx in defined_idxs if idx in allheads ]
+    if !isempty(unused_idxs_which_clash)
+        error("@components: found duplicated symbols between unused indices and tensors/scalars '$(join(unused_idxs_which_clash,','))'")
     end
 end
 

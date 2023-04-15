@@ -73,17 +73,21 @@ const TO = TensorOperations
     end)
 
     # name clashes
-    # between index and tensor
-    @test_throws ErrorException TC.components(quote
-        @index A, I, J = 1:3
-        A[I,J] = B[I,J]
-    end)
-    # between index and scalar variable
+    # you can't use indices as scalars or tensors
     @test_throws ErrorException TC.components(quote
         @index I, J = 1:3
         A[I,J] = I * B[I,J]
     end)
-    # between tensor and scalar variable
+    @test_throws ErrorException TC.components(quote
+        @index I, J = 1:3
+        A[I,J] = I[I,J]
+    end)
+    # also fails if index is unused
+    @test_throws ErrorException TC.components(quote
+        @index I, J, A = 1:3
+        A[I,J] = B[I,J]
+    end)
+    # you can't use a tensor as a scalar
     @test_throws ErrorException TC.components(quote
         @index I, J = 1:3
         A[I,J] = A * B[I,J]
