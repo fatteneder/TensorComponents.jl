@@ -40,6 +40,9 @@ function components(expr)
         end
     end
 
+    # impose any symmetry relations
+    code_resolve_syms = [ generate_code_resolve_symmetries(sym) for sym in ex_sym ]
+
     # define components:
     # 1. setup views of tensors
     # 2. forward contraction to TensorOperations.@tensor macro
@@ -49,6 +52,7 @@ function components(expr)
     code = quote
         $(code_def_idxs...)
         $(code_def_tensors...)
+        $(code_resolve_syms)
         components = Tuple{Basic,Basic}[]
         $([ :(comps = $def; append!(components, comps)) for def in code_unroll_eqs ]...)
         return components
@@ -422,4 +426,81 @@ function generate_code_unroll_equations(eq)
     end
 
     return code
+end
+
+
+# we carry out the contraction similar to generate_code_unroll_equations above
+# the difference here is that the expression transforming looks like
+#   @symmetry A[i,j] = A[j,i]
+# becomes
+#   var"#A##0123" = view(A,i,j)
+#   var"#A##0567" = view(A,j,i)
+#   result = let
+#       @tensor result[i,j] = var"#A##0123"[i,j] - var"#A##0123"
+#       result
+#   end
+#   A = TensorComponents.resolve_dependents(A, result)
+function generate_code_resolve_symmetries(ex_sym)
+
+    MacroTools.@capture(ex_sym, @symmetry sym_)
+
+    lhs, rhs = TO.getlhs(sym), TO.getrhs(sym)
+
+    # extract the tensor for which we resolve symmetries
+    # we already checked that there is exactly one
+    ts = TO.gettensorobjects(lhs)
+    head = !isempty(ts) ? ts[1] : TO.gettensorobjects(rhs)[1]
+
+    # replace all tensor heads with generated symbols, because we have to replace them
+    # later with permutations of the initial array
+    gend_lhs_heads_idxs = []
+    gend_lhs = MacroTools.postwalk(lhs) do node
+        !TO.istensor(node) && return node
+        heads_idxs = TO.decomposetensor(node)
+        head = heads_idxs[1]
+        gend_head = gensym(head)
+        push!(gend_lhs_heads_idxs, (head, gend_head, heads_idxs[2:end]...))
+        newnode = MacroTools.postwalk(node) do h
+            h === head ? gend_head : h
+        end
+        return newnode
+    end
+    gend_rhs_heads_idxs = []
+    gend_rhs = MacroTools.postwalk(rhs) do node
+        !TO.istensor(node) && return node
+        heads_idxs = TO.decomposetensor(node)
+        head = heads_idxs[1]
+        gend_head = gensym(head)
+        push!(gend_rhs_heads_idxs, (head, gend_head, heads_idxs[2:end]...))
+        newnode = MacroTools.postwalk(node) do h
+            h === head ? gend_head : h
+        end
+        return newnode
+    end
+
+    # define views of lhs and rhs tensors, if any
+    vlhs_tensors = [ :($ghead = view($head, $(idxs...)))
+                    for (head,ghead,idxs,_) in gend_lhs_heads_idxs if length(idxs) > 0 ]
+    vrhs_tensors = [ :($ghead = view($head, $(idxs...)))
+                    for (head,ghead,idxs,_) in gend_rhs_heads_idxs if length(idxs) > 0 ]
+
+    letargs = Expr[]
+    let_tensor_expr = :(let; @tensor result[i,j] := $gend_lhs - $gend_rhs; result end)
+
+    # # TODO Add symmetry relation as comment with a linenode, because we had
+    # # to obfuscate it; wait, obfuscation already occurs because of the @tensor macro,
+    # # so its needed anyways
+    # # comment = Expr(:line, string(ex_sym))
+    # comment1 = LineNumberNode(0, Symbol(repeat('=',100)*"\n sers oida"))
+    # comment2 = LineNumberNode(0, Symbol(ex_sym))
+    # comment3 = LineNumberNode(0, Symbol(repeat('=',100)))
+    code = quote
+        $(vlhs_tensors...)
+        $(vrhs_tensors...)
+        res = $let_tensor_expr
+        $head = TensorComponents.resolve_dependents($head, res)
+    end
+
+    return code
+
 end
