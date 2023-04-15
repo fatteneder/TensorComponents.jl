@@ -265,8 +265,7 @@ function parse_heads_idxpairs_equations(eqs)
     uidxs = unique(reduce(vcat, tensoridxs, init=Symbol[]))
     if any(i -> i in uheads, uidxs)
         dups = [ idx for idx in uidxs if idx in uheads ]
-        error(rstrip(msg[1:end-length(", ")]))
-        error("@components: found duplicated symbols between indices and tensors '$(join(dups,','))'")
+        error("@components: found duplicated symbols between indices and tensors/scalars '$(join(dups,','))'")
     end
 
     return tensorheads, tensoridxs
