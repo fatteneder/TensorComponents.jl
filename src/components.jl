@@ -290,6 +290,11 @@ function verify_tensors_indices(tensorheads, idxpairs, defined_idxs)
     if !isempty(unused_idxs_which_clash)
         error("@components: found duplicated symbols between unused indices and tensors/scalars '$(join(unused_idxs_which_clash,','))'")
     end
+    for head in allheads
+        is = findall(h -> h === head, tensorheads)
+        ipairs = idxpairs[is]
+        !allequal(length.(ipairs)) && error("@components: found tensor '$head' being used with inconsistent rank")
+    end
 end
 
 
