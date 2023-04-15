@@ -47,7 +47,22 @@ const TO = TensorOperations
         @index i = 4
         a = A[i,i]
     end); true)
-
+    # Impose symmetries on tensors to reduce number of operations
+    let
+        comps = eval(@components begin
+            @index i, j = 4
+            @symmetry A[i,j] = A[j,i]
+            A[i,j] = a[i] * a[j]
+        end)
+        A = TC.SymbolicTensor(:A,4,4)
+        a = TC.SymbolicTensor(:a,4)
+        aa = a .* a'
+        test_comps = [ (A[1,1],aa[1,1]), (A[1,2],aa[1,2]), (A[1,3],aa[1,3]), (A[1,4],aa[1,4]),
+                       (A[2,2],aa[2,2]), (A[2,3],aa[2,3]), (A[2,4],aa[2,4]),
+                       (A[3,3],aa[3,3]), (A[3,4],aa[3,4]),
+                       (A[4,4],aa[4,4]) ]
+        @test all(comps .== test_comps)
+    end
 
     ### invalid use
 
