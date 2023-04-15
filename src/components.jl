@@ -224,7 +224,7 @@ function parse_heads_idxpairs_equations(eqs)
         elseif TO.isscalarexpr(lhs)
             [ (lhs, [], []) ]
         else
-            error("@components: This should not have happened!")
+            error("@components: This should not have happened; don't know how to handle: '$lhs'!")
         end
 
         rhs_heads_idxs = if TO.istensorexpr(rhs)
@@ -237,7 +237,7 @@ function parse_heads_idxpairs_equations(eqs)
             scalars = unique(reduce(vcat, getscalars.(coeffs)))
             [ (s, [], []) for s in scalars ]
         else
-            error("@components: This should not have happened!")
+            error("@components: This should not have happened; don't know how to handle: '$rhs'!")
         end
 
         for heads_idxs in (lhs_heads_idxs, rhs_heads_idxs), (head, idxs, _) in heads_idxs
@@ -278,8 +278,9 @@ end
 function verify_tensors_indices(tensorheads, idxpairs, defined_idxs)
     allidxs = unique(reduce(vcat,idxpairs,init=Symbol[]))
     undefined_idxs = [ idx for idx in allidxs if !(idx in defined_idxs) ]
+    filter!(i -> i isa Symbol, undefined_idxs)
     if !isempty(undefined_idxs)
-        error("@components: undefined indices '$undefined_idxs'; you need to declare them with @index first")
+        error("@components: undefined indices '$(join(undefined_idxs,','))'; you need to declare them with @index first")
     end
     allheads = unique(tensorheads)
     unused_idxs_which_clash = [ idx for idx in defined_idxs if idx in allheads ]
@@ -389,54 +390,79 @@ function generate_code_unroll_equations(eq)
 
     lhs, rhs = TO.getlhs(eq), TO.getrhs(eq)
 
-    # only extract tensors, because we don't need take views of scalars
-    lhs_head, lhs_idxs = if TO.istensorexpr(lhs)
-        TO.decomposetensor(TO.gettensors(lhs)[1])
-    else
-        lhs, []
+    # replace all tensor heads with generated symbols, because we use views for each
+    # indexed tensor, and some tensors might appear twice (although on ly on RHSs)
+    gend_lhs_heads_idxs = []
+    lhs = MacroTools.postwalk(lhs) do node
+        # can't capture scalars here (easily), because postwalk will also visit indices (if
+        # there are any) and classify those as scalars ...
+        !TO.istensor(node) && return node
+        heads_idxs = TO.decomposetensor(node)
+        head, idxs = heads_idxs[1], heads_idxs[2]
+        gend_head = gensym(head)
+        fixed_idxs = filter(i -> i isa Symbol, idxs)
+        push!(gend_lhs_heads_idxs, (head, gend_head, fixed_idxs, heads_idxs[2:end]...))
+        newnode = MacroTools.postwalk(node) do h
+            h === head ? gend_head : h
+        end
+        filter!(i -> i isa Symbol, newnode.args[2:end])
+        if length(newnode.args) == 1
+            newnode = newnode.args[1]
+        end
+        return newnode
     end
-    rhs_heads_idxs = if TO.istensorexpr(rhs)
-        TO.decomposetensor.(TO.gettensors(rhs))
-    elseif TO.isscalarexpr(rhs)
-        coeffs = getcoeffs(rhs)
-        scalars = unique(reduce(vcat, getscalars.(coeffs)))
-        [ (s, [], []) for s in scalars ]
-    else
-        error("@components: This should not have happened!")
+    if isempty(gend_lhs_heads_idxs) # lhs must be a scalar
+        push!(gend_lhs_heads_idxs, (lhs, lhs, [], [], []))
+    end
+
+    gend_rhs_heads_idxs = []
+    rhs = MacroTools.postwalk(rhs) do node
+        !TO.istensor(node) && return node
+        heads_idxs = TO.decomposetensor(node)
+        head, idxs = heads_idxs[1], heads_idxs[2]
+        gend_head = gensym(head)
+        fixed_idxs = filter(i -> i isa Symbol, idxs)
+        push!(gend_rhs_heads_idxs, (head, gend_head, fixed_idxs, heads_idxs[2:end]...))
+        newnode = MacroTools.postwalk(node) do h
+            h === head ? gend_head : h
+        end
+        filter!(i -> i isa Symbol, newnode.args)
+        if length(newnode.args) == 1
+            newnode = newnode.args[1]
+        end
+        return newnode
     end
 
     # define views of lhs and rhs tensor, if any
-    vlhs_tensor = if TO.istensorexpr(lhs)
-        :($(Symbol(:v_,lhs_head)) = view($lhs_head, $(lhs_idxs...)))
-    else
-        nothing
-    end
-    vrhs_tensors = [ :($(Symbol(:v_,head)) = view($head, $(idxs...)))
-                    for (head,idxs,_) in rhs_heads_idxs if length(idxs) > 0 ]
+    vlhs_tensors = [ :($ghead = view($head, $(idxs...)))
+                    for (head,ghead,idxs,_) in gend_lhs_heads_idxs if length(idxs) > 0 ]
+    vrhs_tensors = [ :($ghead = view($head, $(idxs...)))
+                    for (head,ghead,idxs,_) in gend_rhs_heads_idxs if length(idxs) > 0 ]
 
-    letargs = [ :($head = $(Symbol(:v_,head))) for (head,idxs,_) in rhs_heads_idxs
-                if length(idxs) > 0 ] # only views
-    if !isnothing(vlhs_tensor)
-        insert!(letargs, 1, :($lhs_head = deepcopy($(Symbol(:v_,lhs_head)))))
+    lhs_head, lhs_ghead = first(gend_lhs_heads_idxs)[1:2]
+    ret_lhs = Symbol(:ret_, lhs_ghead)
+    let_tensor_expr = quote
+        $ret_lhs = let $lhs_ghead = deepcopy($lhs_ghead)
+            @tensor $lhs = $rhs
+            $lhs_ghead
+        end
     end
-    ret_lhs = Symbol(:ret_, lhs_head)
-    let_tensor_expr = :($ret_lhs = let $(letargs...); @tensor $eq; $lhs_head end)
 
     # extract independent tensor components, if any
     extract_indeps = if !TO.isscalarexpr(lhs)
-        ulhs_head = Symbol(:u_,lhs_head)
+        ulhs_ghead = Symbol(:u_,lhs_ghead)
         quote
-            $ulhs_head = unique($lhs_head)
-            idx_indeps = [ findfirst(h -> h == u, $lhs_head) for u in $ulhs_head ]
-            zip(view($lhs_head, idx_indeps), view($ret_lhs, idx_indeps))
+            $ulhs_ghead = unique($lhs_ghead)
+            idx_indeps = [ findfirst(h -> h == u, $lhs_ghead) for u in $ulhs_ghead ]
+            zip(view($lhs_ghead, idx_indeps), view($ret_lhs, idx_indeps))
         end
     else
-        :(zip($lhs_head, $ret_lhs))
+        :(zip($lhs_ghead, $ret_lhs))
     end
 
     code = quote
         let
-            $vlhs_tensor
+            $(vlhs_tensors...)
             $(vrhs_tensors...)
             $let_tensor_expr
             $extract_indeps

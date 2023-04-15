@@ -9,6 +9,6 @@ end
 
 Index(i::Int) = Index(1:i)
 
-Base.view(t::AbstractArray, idxs::Index...) = view(t, (i.rng for i in idxs)...)
+Base.view(t::AbstractArray, idxs::Union{Index,Int}...) = view(t, (i isa Index ? i.rng : i for i in idxs)...)
 
 Base.length(i::Index) = length(i.rng)
