@@ -498,8 +498,8 @@ function generate_code_resolve_symmetries(ex_sym)
     ts = TO.gettensorobjects(lhs)
     head = !isempty(ts) ? ts[1] : TO.gettensorobjects(rhs)[1]
 
-    # replace all tensor heads with generated symbols, because we have to replace them
-    # later with permutations of the initial array
+    # replace all tensor heads with generated symbols, because we use views for each
+    # indexed tensor, and some tensors might appear twice (although on ly on RHSs)
     gend_lhs_heads_idxs = []
     gend_lhs = MacroTools.postwalk(lhs) do node
         !TO.istensor(node) && return node
@@ -531,7 +531,8 @@ function generate_code_resolve_symmetries(ex_sym)
     vrhs_tensors = [ :($ghead = view($head, $(idxs...)))
                     for (head,ghead,idxs,_) in gend_rhs_heads_idxs if length(idxs) > 0 ]
 
-    let_tensor_expr = :(let; @tensor result[i,j] := $gend_lhs - $gend_rhs; result end)
+    result_idxs = first(gend_lhs_heads_idxs)[3]
+    let_tensor_expr = :(let; @tensor result[$(result_idxs...)] := $gend_lhs - $gend_rhs; result end)
 
     # # TODO Add symmetry relation as comment with a linenode, because we had
     # # to obfuscate it; wait, obfuscation already occurs because of the @tensor macro,
