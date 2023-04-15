@@ -63,6 +63,15 @@ const TO = TensorOperations
                        (A[4,4],aa[4,4]) ]
         @test all(comps .== test_comps)
     end
+    # TODO Make these work
+    @test_skip (eval(@components begin
+        @index i = 4
+        A[i] = log(α[i])
+    end); true)
+    @test_skip (eval(@components begin
+        @index i = 4
+        A[i] = B[1,i]
+    end); true)
 
     ### invalid use
 
@@ -122,7 +131,7 @@ const TO = TensorOperations
         @index i, j, k = 3
         A[i,j] = B[i,j] + C[k]
     end))
-    # TODO Fix this: can't assign to lhs with contractions
+    # TODO Fix this: can't assign to lhs with contractions -- needs better error message
     # @test_throws ErrorException eval(TC.components(quote
     @test_broken eval(TC.components(quote
         @index i = 3
