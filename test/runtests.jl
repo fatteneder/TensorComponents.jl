@@ -63,14 +63,27 @@ const TO = TensorOperations
                        (A[4,4],aa[4,4]) ]
         @test all(comps .== test_comps)
     end
+    @test (eval(@components begin
+        @index i,j,k = 4
+        @symmetry B[i,j,k] = B[k,j,i]
+    end); true)
+    @test (eval(@components begin
+        @index i = 4
+        A[i] = B[1,i]
+    end); true)
+
+    ### Broken tests
+    # TODO some problem with no elements in reduce
+    @test_skip (eval(@components begin
+        @index i,j,k = 4
+        @symmetry A[i,j,k] = A[j,i,k]
+        @symmetry A[i,j,k] = A[i,k,j]
+        @symmetry A[i,j,k] = A[k,j,i]
+    end); true)
     # TODO Make these work
     @test_skip (eval(@components begin
         @index i = 4
         A[i] = log(α[i])
-    end); true)
-    @test_skip (eval(@components begin
-        @index i = 4
-        A[i] = B[1,i]
     end); true)
 
     ### invalid use
@@ -98,6 +111,16 @@ const TO = TensorOperations
         @index i, j, k = 4
         A[i,j] = B[i,j] * C[k,k]
         D[a]   = B[i,j]
+    end)
+
+    ### Broken tests
+
+    # inconsistent rank between symmetries and equations
+    # @test_throws ErrorException TC.components(quote
+    @test_skip TC.components(quote
+        @index i, j, k = 4
+        @symmetry A[i,j,k] = A[j,i,k]
+        A[i,j] = B[i,j,k] * C[k]
     end)
 
     # name clashes
