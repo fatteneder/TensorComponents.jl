@@ -55,7 +55,7 @@ function components(expr)
         $(code_resolve_syms...)
         components = Tuple{Basic,Basic}[]
         $([ :(comps = $def; append!(components, comps)) for def in code_unroll_eqs ]...)
-        return components
+        components
     end
 
     code = MacroTools.prewalk(MacroTools.rmlines, code)
@@ -274,13 +274,11 @@ end
 
 
 function verify_tensors_indices(idxpairs, defined_idxs)
-
-    for idxs in idxpairs, i in idxs
-        if !(i in defined_idxs)
-            error("@components: undefined indices '$undefined_idxs'; you need to declare them with @index first")
-        end
+    allidxs = reduce(vcat,idxpairs,init=Symbol[])
+    undefined_idxs = [ idx for idx in allidxs if !(idx in defined_idxs) ]
+    if !isempty(undefined_idxs)
+        error("@components: undefined indices '$undefined_idxs'; you need to declare them with @index first")
     end
-
 end
 
 
