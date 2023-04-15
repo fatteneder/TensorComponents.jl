@@ -52,11 +52,14 @@ function components(expr)
     code = quote
         $(code_def_idxs...)
         $(code_def_tensors...)
-        $(code_resolve_syms)
+        $(code_resolve_syms...)
         components = Tuple{Basic,Basic}[]
         $([ :(comps = $def; append!(components, comps)) for def in code_unroll_eqs ]...)
         return components
     end
+
+    code = MacroTools.prewalk(MacroTools.rmlines, code)
+    code = MacroTools.prewalk(MacroTools.rmlines, code)
 
     return code
 end
@@ -484,7 +487,6 @@ function generate_code_resolve_symmetries(ex_sym)
     vrhs_tensors = [ :($ghead = view($head, $(idxs...)))
                     for (head,ghead,idxs,_) in gend_rhs_heads_idxs if length(idxs) > 0 ]
 
-    letargs = Expr[]
     let_tensor_expr = :(let; @tensor result[i,j] := $gend_lhs - $gend_rhs; result end)
 
     # # TODO Add symmetry relation as comment with a linenode, because we had
@@ -494,13 +496,15 @@ function generate_code_resolve_symmetries(ex_sym)
     # comment1 = LineNumberNode(0, Symbol(repeat('=',100)*"\n sers oida"))
     # comment2 = LineNumberNode(0, Symbol(ex_sym))
     # comment3 = LineNumberNode(0, Symbol(repeat('=',100)))
+    eqvar = gensym(:eq)
     code = quote
-        $(vlhs_tensors...)
-        $(vrhs_tensors...)
-        res = $let_tensor_expr
-        $head = TensorComponents.resolve_dependents($head, res)
+        $head = let
+            $(vlhs_tensors...)
+            $(vrhs_tensors...)
+            $eqvar = $let_tensor_expr
+            TensorComponents.resolve_dependents($head, $eqvar)
+        end
     end
 
     return code
-
 end

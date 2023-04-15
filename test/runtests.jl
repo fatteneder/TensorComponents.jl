@@ -229,6 +229,8 @@ end
 
 @testset "SymbolicTensor" begin
 
+    # compute independent components of Riemann tensor in 2-5 dimensions
+    # only testing against number of independents found
     for N = 2:5
         Riem = TC.SymbolicTensor(:R,N,N,N,N)
         red_Riem = reduce_components_riemann_tensor(Riem)
@@ -238,5 +240,13 @@ end
         n_ideps = Int(N^2*(N^2-1)/12)
         @test length(uideps) == n_ideps
     end
+
+    # verify explicitly that reducing components succeeded with a symmetry tensor
+    A = TC.SymbolicTensor(:A,4,4)
+    AT = transpose(A)
+    sym_eq = A .- AT
+    A = TC.resolve_dependents(A, sym_eq)
+    AT = transpose(A)
+    @test all( (A .- AT .== zeros(Basic,4,4))[:] )
 
 end
