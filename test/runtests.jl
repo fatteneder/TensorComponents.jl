@@ -1,5 +1,6 @@
 using Test
 
+using LinearAlgebra
 using TensorComponents
 using TensorOperations
 using SymEngine
@@ -370,6 +371,7 @@ end
     @test TC.istensor(:(b \ C[i,j])) == false
     @test TC.istensor(:(b \ C[i,j] + B[k])) == false
     @test TC.istensor(:(C[i,j] \ b + B[k])) == false
+    @test TC.istensor(:(A[i,j] * (b * B[k] - c * C[k]) / d)) == false
 
     @test TC.isgeneraltensor(:(a)) == false
     @test TC.isgeneraltensor(:(A[i,j])) == true
@@ -387,6 +389,7 @@ end
     @test TC.isgeneraltensor(:(C[i,j] \ b + B[k])) == false
     @test TC.isgeneraltensor(:(b \ C[i,j] * B[k])) == false
     @test TC.isgeneraltensor(:(C[i,j] \ b * B[k])) == false
+    @test TC.isgeneraltensor(:(A[i,j] * (b * B[k] - c * C[k]) / d)) == false
 
     @test TC.istensorexpr(:(a)) == false
     @test TC.istensorexpr(:(A[i,j])) == true
@@ -402,22 +405,45 @@ end
     @test TC.istensorexpr(:(β / D[i, j] * C[k,l])) == false
     @test TC.istensorexpr(:(α * A[i, j] * B[k, l] + (β / C[k, l]) * D[i, j])) == false
     @test TC.istensorexpr(:((a + b)^c * A[i,j] * B[j] - C[i,j] * D[j] / x * y^2)) == true
+    @test TC.istensorexpr(:(A[i,j] * (b * B[k] - c * C[k]) / d)) == true
 
 
-    @test TC.getopenindices(:(A[i,j])) == [:i,:j]
-    @test TC.getopenindices(:(A[i,j] * B[k,l])) == [:i,:j,:k,:l]
-    @test TC.getopenindices(:(A[i,j] * B[k,l] * C[k,l])) == [:i,:j]
-    @test TC.getopenindices(:(A[i,j] * B[k,l] + C[k,l] * D[i,j])) == [:i,:j,:k,:l]
-    @test TC.getopenindices(:(a)) == []
-    @test TC.getopenindices(:(a + b)) == []
-    @test TC.getopenindices(:((a + b)^c)) == []
-    @test TC.getopenindices(:((a + b)^c * A[i,j])) == [:i,:j]
-    @test TC.getopenindices(:((a + b)^c * A[i,j] * B[j] - C[i,j] * D[j] / x * y^2)) == [:i]
+    @test TC.getallindices(:(A[i,j])) == [:i,:j]
+    @test TC.getallindices(:(A[i,j] * B[k,l])) == [:i,:j,:k,:l]
+    @test TC.getallindices(:(A[i,j] * B[k,l] * C[k,l])) == [:i,:j,:k,:l]
+    @test TC.getallindices(:(A[i,j] * B[k,l] + C[k,l] * D[i,j])) == [:i,:j,:k,:l]
+    @test TC.getallindices(:(A[i,j] * B[k,l] + C[m,n] * D[o,p])) == [:i,:j,:k,:l,:m,:n,:o,:p]
+    @test TC.getallindices(:(a)) == []
+    @test TC.getallindices(:(a + b)) == []
+    @test TC.getallindices(:((a + b)^c)) == []
+    @test TC.getallindices(:((a + b)^c * A[i,j])) == [:i,:j]
+    @test TC.getallindices(:(A[i,j] * B[j] - C[i,j] * D[j])) == [:i,:j]
+    @test TC.getallindices(:((a + b)^c * A[i,j] * B[x] - C[y,z] * D[j] / x * y^2)) == [:i,:j,:x,:y,:z]
+    @test TC.getallindices(:(A[i,j] * (b * B[k] - c * C[k]) / d)) == [:i,:j,:k]
 
-    ### invalid use
-    # invalid index pattern
-    @test_throws ArgumentError TC.getopenindices(:(A[i,j] * B[k,l] + C[k,l]))
-    # disallow / operator
-    @test_throws ArgumentError TC.getopenindices(:(α * A[i,j] * B[k,l] + β / C[k,l] * D[i,j]))
-    @test_throws ArgumentError TC.getopenindices(:(β \ C[k,l] * D[i,j]))
+    # TODO This should fail with comprehensive msg
+    @test_skip TC.getallindices(:(C[k]^3)) == [:k]
+    # should be written as (really, looks unnecessariyl complicated...)
+    # @test_skip TC.getallindices(:(C[i]*C[j]*C[k]*δ[i,j]*δ[j,k]*δ[k,i])) == [:k]
+
+    @test TC.getindices(:(A[i,j])) == [:i,:j]
+    @test TC.getindices(:(A[i,j] * B[k,l])) == [:i,:j,:k,:l]
+    @test TC.getindices(:(A[i,j] * B[k,l] * C[k,l])) == [:i,:j]
+    @test TC.getindices(:(A[i,j] * B[k,l] + C[k,l] * D[i,j])) == [:i,:j,:k,:l]
+    @test TC.getindices(:(A[i,j] * B[k,l] + C[m,n] * D[o,p])) == [:i,:j,:k,:l,:m,:n,:o,:p]
+    @test TC.getindices(:(a)) == []
+    @test TC.getindices(:(a + b)) == []
+    @test TC.getindices(:((a + b)^c)) == []
+    @test TC.getindices(:((a + b)^c * A[i,j])) == [:i,:j]
+    @test TC.getindices(:(A[i,j] * B[j] - C[i,j] * D[j])) == [:i]
+    @test TC.getindices(:((a + b)^c * A[i,j] * B[x] - C[y,z] * D[j] / x * y^2)) == [:i,:j,:x,:y,:z]
+    @test TC.getindices(:(A[i,j] * (b * B[k] - c * C[k]) / d)) == [:i,:j,:k]
+
+
+    # ### invalid use
+    # # invalid index pattern
+    # @test_throws ArgumentError TC.getopenindices(:(A[i,j] * B[k,l] + C[k,l]))
+    # # disallow / operator
+    # @test_throws ArgumentError TC.getopenindices(:(α * A[i,j] * B[k,l] + β / C[k,l] * D[i,j]))
+    # @test_throws ArgumentError TC.getopenindices(:(β \ C[k,l] * D[i,j]))
 end

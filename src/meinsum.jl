@@ -74,43 +74,122 @@ end
 # [i,j]
 
 
-function getopenindices(ex)
+# function getallindices2(ex)
+#
+#     isscalarexpr(ex) && return Any[], Any[]
+#     !istensorexpr(ex) && throw(ArgumentError("not a tensor expression: $ex"))
+#
+#     idxs, contracted = Any[], Any[]
+#     idxs = if istensor(ex)
+#         getallindices(ex)
+#     elseif ex.head === :call && ex.args[1] in (:+,:-)
+#         allsubidxs = [ getallindices2(a) for a in ex.args[2:end] ]
+#         allopensubidxs = [ idxs[1] for idxs in allsubidxs ]
+#         catalog = permutation_catalog(first(allopensubidxs))
+#         if !all(sidxs -> ispermutation(sidxs, catalog), allopensubidxs)
+#             throw(ArgumentError("inconsistent contraction pattern: $ex"))
+#         end
+#         append!(contracted, reduce(vcat, a[2] for a in allsubidxs))
+#         append!(idxs, first(allopensubidxs))
+#     elseif ex.head === :call && ex.args[1] === :*
+#         append!(idxs,
+#                 reduce(vcat, [ istensorexpr(a) ? getallindices(a) : [] for a in ex.args[2:end] ])
+#                )
+#     elseif ex.head === :call && ex.args[1] === :/
+#         append!(idxs, getallindices(ex.args[2]))
+#     # elseif ex.head === :call && ex.args[1] === :\
+#     #     append!(idxs, getindices(ex.args[3]))
+#     else
+#         throw(ex)
+#     end
+#
+#     # @show ex
+#     # display(idxs)
+#     # display(contracted)
+#
+#     # filter contracted indices (=^= appear exactly twice)
+#     # TODO Enforce exactly twice somewhere ...
+#     # contracted = [ i for i in idxs if count(j -> i == j, idxs) > 1 ]
+#     append!(contracted, i for i in idxs if count(j -> i == j, idxs) > 1)
+#     foreach(d -> filter!(i -> i != d, idxs), contracted)
+#     unique!(contracted)
+#     # display(idxs)
+#     # display(contracted)
+#
+#     return idxs, contracted
+# end
 
-    isscalarexpr(ex) && return Any[]
-    !istensorexpr(ex) && throw(ArgumentError("not a tensor expression: $ex"))
 
-    idxs = Any[]
-    idxs = if istensor(ex)
-        getindices(ex)
-    elseif ex.head === :call && ex.args[1] in (:+,:-)
-        all_subidxs = [ getopenindices(a) for a in ex.args[2:end] ]
-        catalog = permutation_catalog(first(all_subidxs))
-        if !all(sidxs -> ispermutation(sidxs, catalog), all_subidxs)
-            throw(ArgumentError("inconsistent contraction pattern: $ex"))
-        end
-        append!(idxs, first(all_subidxs))
-    elseif ex.head === :call && ex.args[1] === :*
-        append!(idxs,
-                reduce(vcat, [ istensor(a) ? getindices(a) : [] for a in ex.args[2:end] ])
-               )
-    elseif ex.head === :call && ex.args[1] === :/
-        append!(idxs, getindices(ex.args[2]))
-    # elseif ex.head === :call && ex.args[1] === :\
-    #     append!(idxs, getindices(ex.args[3]))
+# TODO Figure out what these should do
+# - getallindices ... all indices, but unique
+# - getindices ... only open indices
+# - getopenindices
+# - getcontractedindices
+
+# getopenindices(ex) = getallindices(ex)[1]
+# getcontractedindices(ex) = getallindices(ex)[2]
+
+
+getallindices(ex) = unique(_getallindices(ex))
+function _getallindices(ex::Expr)
+    if isscalarexpr(ex)
+        return []
+    elseif istensor(ex)
+        return ex.args[2:end]
+    elseif isgeneraltensor(ex)
+        return reduce(vcat, [ _getallindices(a) for a in ex.args[2:end] ])
+    elseif istensorexpr(ex)
+        return reduce(vcat, [ _getallindices(a) for a in ex.args[2:end] if istensorexpr(a) ])
     else
-        throw(ex)
+        throw(ArgumentError("not a tensor expression: $ex"))
     end
-
-    # filter contracted indices (=^= appear exactly twice)
-    # TODO Enforce exactly twice somewhere ...
-    dups = [ i for i in idxs if count(j -> i == j, idxs) > 1 ]
-    foreach(d -> filter!(i -> i != d, idxs), dups)
-
-    return idxs
 end
+_getallindices(ex::Symbol) = []
+_getallindices(ex::Int) = []
 
-
-
+# function getopenindices(ex)
+#     allidxs = _getallindices(ex)
+#     openidxs = filter(i -> count(j -> i == j, allidxs) == 1, allidxs)
+#     unique!(openidxs)
+#     return openidxs
+# end
+getindices(ex) = unique(_getindices(ex))
+function _getindices(ex::Expr)
+    if isscalarexpr(ex)
+        return []
+    elseif istensor(ex)
+        return ex.args[2:end]
+    elseif isgeneraltensor(ex)
+        allidxs = reduce(vcat, _getindices(a) for a in ex.args[2:end]; init=[])
+        idxs = filter(i -> count(j -> j == i, allidxs) == 1, allidxs)
+        return idxs
+    elseif istensorexpr(ex)
+        # display(ex)
+        idxs = if ex.args[1] === :*
+            # println("*")
+            allidxs = reduce(vcat, _getindices(a) for a in ex.args[2:end]; init=[])
+            filter(i -> count(j -> j == i, allidxs) == 1, allidxs)
+        elseif ex.args[1] in (:+,:-)
+            # println("+,-")
+            allidxs = [ _getindices(a) for a in ex.args[2:end] ]
+            allidxs = map(allidxs) do idxs
+                filter(i -> count(j -> j == i, idxs) == 1, idxs)
+            end
+            allidxs = unique(reduce(vcat, allidxs; init=[]))
+            allidxs
+        elseif ex.args[1] === :/
+            _getindices(ex.args[2])
+        else
+            throw(ErrorException("this should not have happened!"))
+        end
+        # display(idxs)
+        return idxs
+    else
+        throw(ArgumentError("not a tensor expression: $ex"))
+    end
+end
+_getindices(ex::Symbol) = []
+_getindices(ex::Int) = []
 
 # # Taken from TensorOperations.jl
 # isassignment(ex) = false
@@ -204,20 +283,6 @@ function hasindices(ex)
 end
 hasindices(ex::Symbol) = false
 hasindices(ex::Number) = false
-
-
-
-function getindices(ex::Expr)
-    if istensor(ex)
-        return ex.args[2:end]
-    elseif isgeneraltensor(ex)
-        idxs = reduce(vcat, [ getindices(a) for a in ex.args[2:end] ] )
-    else
-        throw(ArgumentError("not a tensor: $ex"))
-    end
-end
-getindices(ex::Symbol) = [ ex ]
-getindices(ex::Int) = [ ex ]
 
 
 # variable =^= any Symbol that is used in an expression with head===:call
