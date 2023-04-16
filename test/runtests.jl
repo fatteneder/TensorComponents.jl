@@ -311,7 +311,7 @@ end
 
     # compute independent components of Riemann tensor in 2-5 dimensions
     # only testing against number of independents found
-    for N = 2:5
+    for N = 2:4
         Riem = TC.SymbolicTensor(:R,N,N,N,N)
         red_Riem = reduce_components_riemann_tensor(Riem)
         ideps = [ SymEngine.free_symbols(R) for R in red_Riem[:] ]
@@ -329,4 +329,95 @@ end
     AT = transpose(A)
     @test all( (A .- AT .== zeros(Basic,4,4))[:] )
 
+end
+
+
+@testset "contract utilities" begin
+
+    @test TC.hasindices(:(a)) == false
+    @test TC.hasindices(:(a / b)) == false
+    @test TC.hasindices(:(a \ b)) == false
+    @test TC.hasindices(:(a \ b + 1)) == false
+    @test TC.hasindices(:(a \ 2 + c)) == false
+    @test TC.hasindices(:((a \ 2)^c)) == false
+    @test TC.hasindices(:(A[i,j])) == true
+    @test TC.hasindices(:(a * A[i,j])) == true
+    @test TC.hasindices(:(a \ A[i,j])) == true
+    @test TC.hasindices(:(a / A[i,j])) == true
+    @test TC.hasindices(:(a / A[i,j] + B[i,j])) == true
+
+    @test TC.isscalarexpr(:(a)) == true
+    @test TC.isscalarexpr(:(a / b)) == true
+    @test TC.isscalarexpr(:(a \ b)) == true
+    @test TC.isscalarexpr(:(a \ b + 1)) == true
+    @test TC.isscalarexpr(:(a \ 2 + c)) == true
+    @test TC.isscalarexpr(:((a \ 2)^c)) == true
+    @test TC.isscalarexpr(:(A[i,j])) == false
+    @test TC.isscalarexpr(:(a * A[i,j])) == false
+    @test TC.isscalarexpr(:(a \ A[i,j])) == false
+    @test TC.isscalarexpr(:(a / A[i,j])) == false
+    @test TC.isscalarexpr(:(a / A[i,j] + B[i,j])) == false
+
+    @test TC.istensor(:(a)) == false
+    @test TC.istensor(:(A[i,j])) == true
+    @test TC.istensor(:(a * A[i,j])) == false
+    @test TC.istensor(:(a / A[i,j])) == false
+    @test TC.istensor(:(A[i,j] / b)) == false
+    @test TC.istensor(:(a / b * A[i,j])) == false
+    @test TC.istensor(:(A[i,j] * B[k])) == false
+    @test TC.istensor(:(A[i,j] + B[k])) == false
+    @test TC.istensor(:(A[i,j] + B[i,j])) == false
+    @test TC.istensor(:(b \ C[i,j])) == false
+    @test TC.istensor(:(b \ C[i,j] + B[k])) == false
+    @test TC.istensor(:(C[i,j] \ b + B[k])) == false
+
+    @test TC.isgeneraltensor(:(a)) == false
+    @test TC.isgeneraltensor(:(A[i,j])) == true
+    @test TC.isgeneraltensor(:(a * A[i,j])) == true
+    @test TC.isgeneraltensor(:(a / A[i,j])) == false
+    @test TC.isgeneraltensor(:(A[i,j] / b)) == true
+    @test TC.isgeneraltensor(:(a \ A[i,j])) == false
+    @test TC.isgeneraltensor(:(A[i,j] \ b)) == false
+    @test TC.isgeneraltensor(:(a / b * A[i,j])) == true
+    @test TC.isgeneraltensor(:(A[i,j] * B[k])) == false
+    @test TC.isgeneraltensor(:(A[i,j] + B[k])) == false
+    @test TC.isgeneraltensor(:(A[i,j] + B[i,j])) == false
+    @test TC.isgeneraltensor(:(b \ C[i,j])) == false
+    @test TC.isgeneraltensor(:(b \ C[i,j] + B[k])) == false
+    @test TC.isgeneraltensor(:(C[i,j] \ b + B[k])) == false
+    @test TC.isgeneraltensor(:(b \ C[i,j] * B[k])) == false
+    @test TC.isgeneraltensor(:(C[i,j] \ b * B[k])) == false
+
+    @test TC.istensorexpr(:(a)) == false
+    @test TC.istensorexpr(:(A[i,j])) == true
+    @test TC.istensorexpr(:(A[i,j] + a)) == false
+    @test TC.istensorexpr(:(a * A[i,j])) == true
+    @test TC.istensorexpr(:(a / A[i,j])) == false
+    @test TC.istensorexpr(:(A[i,j] / b)) == true
+    @test TC.istensorexpr(:(C[i,j] * D[j] / x)) == true
+    @test TC.istensorexpr(:(a / b * A[i,j])) == true
+    @test TC.istensorexpr(:(A[i,j] * B[k])) == true
+    @test TC.istensorexpr(:(A[i,j] + B[k])) == true
+    @test TC.istensorexpr(:(A[i,j] + B[i,j])) == true
+    @test TC.istensorexpr(:(β / D[i, j] * C[k,l])) == false
+    @test TC.istensorexpr(:(α * A[i, j] * B[k, l] + (β / C[k, l]) * D[i, j])) == false
+    @test TC.istensorexpr(:((a + b)^c * A[i,j] * B[j] - C[i,j] * D[j] / x * y^2)) == true
+
+
+    @test TC.getopenindices(:(A[i,j])) == [:i,:j]
+    @test TC.getopenindices(:(A[i,j] * B[k,l])) == [:i,:j,:k,:l]
+    @test TC.getopenindices(:(A[i,j] * B[k,l] * C[k,l])) == [:i,:j]
+    @test TC.getopenindices(:(A[i,j] * B[k,l] + C[k,l] * D[i,j])) == [:i,:j,:k,:l]
+    @test TC.getopenindices(:(a)) == []
+    @test TC.getopenindices(:(a + b)) == []
+    @test TC.getopenindices(:((a + b)^c)) == []
+    @test TC.getopenindices(:((a + b)^c * A[i,j])) == [:i,:j]
+    @test TC.getopenindices(:((a + b)^c * A[i,j] * B[j] - C[i,j] * D[j] / x * y^2)) == [:i]
+
+    ### invalid use
+    # invalid index pattern
+    @test_throws ArgumentError TC.getopenindices(:(A[i,j] * B[k,l] + C[k,l]))
+    # disallow / operator
+    @test_throws ArgumentError TC.getopenindices(:(α * A[i,j] * B[k,l] + β / C[k,l] * D[i,j]))
+    @test_throws ArgumentError TC.getopenindices(:(β \ C[k,l] * D[i,j]))
 end

@@ -70,28 +70,6 @@ function _getcoeffs!(expr, scalars)
 end
 
 
-# variable =^= any Symbol that is used in an expression with head===:call
-function getscalars(ex)
-    vars = Symbol[]
-    _getscalars!(ex, vars)
-    return vars
-end
-
-
-_getscalars!(s::Symbol, vars) = push!(vars, s)
-_getscalars!(s::Number, vars) = nothing
-function _getscalars!(ex::Expr, vars)
-    if ex.head === :call
-        foreach(ex.args[2:end]) do a
-            _getscalars!(a, vars)
-        end
-    else
-        error("Failed to extract variables from '$ex'")
-    end
-    return
-end
-
-
 # From https://stackoverflow.com/a/16464566
 function isevenperm(perm)
     isperm(perm) || error()
