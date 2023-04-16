@@ -89,6 +89,14 @@ isoddperm(perm) = !isevenperm(perm)
 perms(l) = isempty(l) ? [l] : [[x; y] for x in l for y in perms(setdiff(l, x))]
 
 
+# permutation test for non-integer containers
+ispermutation(seq, catalog) = isperm(catalog[s] for s in seq)
+
+
+# provide a catalog that maps a container's elements to integers, for use with ispermutation
+permutation_catalog(seq) = Dict{Any,Int}( s => i for (i,s) in enumerate(seq) )
+
+
 """
     epsilon_symbol(N)
 

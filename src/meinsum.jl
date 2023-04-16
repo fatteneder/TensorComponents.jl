@@ -110,8 +110,6 @@ function getopenindices(ex)
 end
 
 
-permutation_catalog(seq) = Dict{Any,Int}( s => i for (i,s) in enumerate(seq) )
-ispermutation(seq, catalog) = isperm(catalog[s] for s in seq)
 
 
 # # Taken from TensorOperations.jl
