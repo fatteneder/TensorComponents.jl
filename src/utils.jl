@@ -90,3 +90,46 @@ function _getscalars!(ex::Expr, vars)
     end
     return
 end
+
+
+# From https://stackoverflow.com/a/16464566
+function isevenperm(perm)
+    isperm(perm) || error()
+    count = 0
+    n = length(perm)
+    for i = 1:n, j=i+1:n
+        if perm[i] > perm[j]
+            count += 1
+        end
+    end
+    return count % 2 == 0
+end
+isoddperm(perm) = !isevenperm(perm)
+
+
+# From https://discourse.julialang.org/t/all-permutations-example-in-erlang/71380
+perms(l) = isempty(l) ? [l] : [[x; y] for x in l for y in perms(setdiff(l, x))]
+
+
+"""
+    epsilon_symbol(N)
+
+A tensor representation of the total antisymmetric Levi-Civita
+symbol in `N` dimensions.
+"""
+function epsilon_symbol(N)
+    ϵ = zeros(Int, (N for _ = 1:N)...)
+    allperms = perms(collect(1:N))
+    for p in allperms
+        ϵ[p...] = isevenperm(p) ? 1 : -1
+    end
+    return ϵ
+end
+
+
+"""
+    delta_symbol(N)
+
+A tensor representation of the Kronecker delta symbol in `N` dimensions.
+"""
+delta_symbol(N) = diagm(ones(Int,N))

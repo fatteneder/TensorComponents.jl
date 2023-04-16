@@ -274,6 +274,25 @@ end
     @test TC.getscalars.(TC.getcoeffs(:((x^2 + y)^2 * A[i,j] + B[j,i] * y))) == [ [:x, :y], [:y] ]
     @test TC.getscalars.(TC.getcoeffs(:(cos(α) * A[i,j] + B[j,i] * sin(α)))) == [ [:α], [:α] ]
 
+
+    @test TC.isevenperm([1,2,3]) == true
+    @test TC.isevenperm([2,1,3]) == false
+    @test TC.isevenperm([2,3,1]) == true
+    @test TC.isoddperm([1,2,3]) == false
+    @test TC.isoddperm([2,1,3]) == true
+    @test TC.isoddperm([2,3,1]) == false
+
+    @test Set(TC.perms([1,2,3])) == Set([ [1,2,3], [2,1,3], [1,3,2], [3,2,1], [2,3,1], [3,1,2] ])
+
+    ϵ = TC.epsilon_symbol(3)
+    @test ϵ[1,2,3] == ϵ[2,3,1] == ϵ[3,1,2] == 1
+    @test ϵ[2,1,3] == ϵ[1,3,2] == ϵ[3,2,1] == -1
+    @test ϵ[1,1,1] == ϵ[1,1,2] == ϵ[1,1,3] == ϵ[2,2,1] == ϵ[2,2,2] == ϵ[2,2,3] ==
+          ϵ[3,3,1] == ϵ[3,3,2] == ϵ[3,3,3] == 0
+
+    δ = TC.delta_symbol(3)
+    @test δ == diagm(ones(3))
+
 end
 
 
