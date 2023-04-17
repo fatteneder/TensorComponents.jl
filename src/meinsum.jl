@@ -191,38 +191,81 @@ end
 _getindices(ex::Symbol) = []
 _getindices(ex::Int) = []
 
-# # Taken from TensorOperations.jl
-# isassignment(ex) = false
-# isassignment(ex::Expr) = (ex.head == :(=) || ex.head == :(+=) || ex.head == :(-=))
-#
-# # Taken from TensorOperations.jl
-# function getlhs(ex::Expr)
-#     if isassignment(ex) && length(ex.args) == 2
-#         return ex.args[1]
-#     else
-#         throw(ArgumentError("invalid assignment or definition $ex"))
-#     end
-# end
-# function getrhs(ex::Expr)
-#     if isassignment(ex) && length(ex.args) == 2
-#         return ex.args[2]
-#     else
-#         throw(ArgumentError("invalid assignment or definition $ex"))
-#     end
-# end
-#
-#
+
+function getcontractedindices(ex)
+    allidxs = getallindices(ex)
+    openidxs = getindices(ex)
+    return [ i for i in allidxs if !(i in openidxs) ]
+end
 
 
-# function decomposetensor(ex)
-#     if istensor(ex)
-#         return (ex.args[1], ex.args[2:end])
-#     else
-#         throw(ArgumentError("not a vlid tensor: $ex"))
-#     end
-# end
-#
-#
+# Taken from TensorOperations.jl
+isassignment(ex) = false
+isassignment(ex::Expr) = (ex.head == :(=) || ex.head == :(+=) || ex.head == :(-=))
+
+
+# Taken from TensorOperations.jl
+function getlhs(ex)
+    if isassignment(ex) && length(ex.args) == 2
+        return ex.args[1]
+    else
+        throw(ArgumentError("invalid assignment or definition $ex"))
+    end
+end
+function getrhs(ex)
+    if isassignment(ex) && length(ex.args) == 2
+        return ex.args[2]
+    else
+        throw(ArgumentError("invalid assignment or definition $ex"))
+    end
+end
+
+
+function gettensors(ex)
+    ts = []
+    _gettensors!(ts, ex)
+    return ts
+end
+
+
+function _gettensors!(vars, ex)
+    if isscalarexpr(ex)
+        nothing
+    elseif istensor(ex)
+        push!(vars, ex)
+    elseif isgeneraltensor(ex)
+        foreach(ex.args) do a
+            istensor(a) && push!(vars, a)
+        end
+    elseif ex.head === :call && length(ex.args) >= 3 && ex.args[1] in (:*,:+,:-)
+        foreach(ex.args[2:end]) do a
+            _gettensors!(vars, a)
+        end
+    elseif ex.head === :call && length(ex.args) == 3 && ex.args[1] === :/
+        _gettensors!(vars, ex.args[2])
+    else
+        error("Failed to extract variables from '$ex'")
+    end
+    return
+end
+_gettensors!(vars, ex::Symbol) = nothing
+_gettensors!(vars, ex::Number) = nothing
+
+
+function decomposetensor(ex)
+    display(ex)
+    if istensor(ex)
+        return (ex.args[1], ex.args[2:end])
+    elseif isgeneraltensor(ex)
+        for a in ex.args[2:end]
+            istensor(a) && return (a.args[1], args[2:end])
+        end
+    else
+        throw(ArgumentError("not a vlid tensor: $ex"))
+    end
+end
+
+
 # Remaining couplings to TensorOperations
 # istensor
 # isgeneraltensor
