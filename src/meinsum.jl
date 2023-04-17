@@ -288,17 +288,17 @@ hasindices(ex::Number) = false
 # variable =^= any Symbol that is used in an expression with head===:call
 function getscalars(ex)
     vars = Symbol[]
-    _getscalars!(ex, vars)
+    _getscalars!(vars, ex)
     return vars
 end
 
 
-_getscalars!(s::Symbol, vars) = push!(vars, s)
-_getscalars!(s::Number, vars) = nothing
-function _getscalars!(ex::Expr, vars)
+_getscalars!(vars, s::Symbol) = push!(vars, s)
+_getscalars!(vars, s::Number) = nothing
+function _getscalars!(vars, ex::Expr)
     if ex.head === :call
         foreach(ex.args[2:end]) do a
-            _getscalars!(a, vars)
+            _getscalars!(vars, a)
         end
     else
         error("Failed to extract variables from '$ex'")
