@@ -440,6 +440,20 @@ end
     @test TC.getindices(:(A[i,j] * (b * B[k] - c * C[k]) / d)) == [:i,:j,:k]
 
 
+    @test TC.gettensors(:(A[i,j])) == [ :(A[i,j]) ]
+    @test TC.gettensors(:(A[i,j] * B[k,l])) == [ :(A[i,j]), :(B[k,l]) ]
+    @test TC.gettensors(:(A[i,j] * B[k,l] * C[k,l])) == [ :(A[i,j]), :(B[k,l]), :(C[k,l]) ]
+    @test TC.gettensors(:(A[i,j] * B[k,l] + C[k,l] * D[i,j])) == [ :(A[i,j]), :(B[k,l]), :(C[k,l]), :(D[i,j]) ]
+    @test TC.gettensors(:(A[i,j] * B[k,l] + C[m,n] * D[o,p])) == [ :(A[i,j]), :(B[k,l]), :(C[m,n]), :(D[o,p]) ]
+    @test TC.gettensors(:(a)) == []
+    @test TC.gettensors(:(a + b)) == []
+    @test TC.gettensors(:((a + b)^c)) == []
+    @test TC.gettensors(:((a + b)^c * A[i,j])) == [ :(A[i,j]) ]
+    @test TC.gettensors(:(A[i,j] * B[j] - C[i,j] * D[j])) == [ :(A[i,j]), :(B[j]), :(C[i,j]), :(D[j]) ]
+    @test TC.gettensors(:((a + b)^c * A[i,j] * B[x] - C[y,z] * D[j] / x * y^2)) == [ :(A[i,j]), :(B[x]), :(C[y,z]), :(D[j]) ]
+    @test TC.gettensors(:(A[i,j] * (b * B[k] - c * C[k]) / d)) == [ :(A[i,j]), :(B[k]), :(C[k]) ]
+
+
     # ### invalid use
     # # invalid index pattern
     # @test_throws ArgumentError TC.getopenindices(:(A[i,j] * B[k,l] + C[k,l]))
