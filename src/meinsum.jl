@@ -52,7 +52,7 @@ function meinsum(expr)
     # - make sure there are the same open indices on both sides
     @assert isempty(getcontractedindices(lhs))
     @assert ispermutation(rhs_idxs, permutation_catalog(lhs_idxs))
-    rhs_cidxs = getcontractedindices(rhs)
+    rhs_conidxs = getcontractedindices(rhs)
 
     # 3. unroll and contract
     # loop_idxs      = [ :($i = TensorComponents.start($i):TensorComponents.stop($i)) for i in rhs_idxs ]
@@ -78,12 +78,12 @@ function meinsum(expr)
     # ```
 
     # gensym all indices
-    gen_idxs  = [ gensym(idx) for idx in rhs_idxs ]
-    gen_cidxs = [ gensym(idx) for idx in rhs_cidxs ]
+    idx_dict    = Dict(idx => gensym(idx) for idx in rhs_idxs)
+    conidx_dict = Dict(idx => gensym(idx) for idx in rhs_conidxs)
+    allidx_dict = merge(idx_dict, conidx_dict)
 
     # setup let args
     let_args = Any[]
-    # display(istensor(lhs))
     lhs_head = if istensor(lhs)
         lhs_head = first(decomposetensor.(gettensors(lhs)))[1]
         push!(let_args, :($lhs_head = zeros(eltype($lhs_head),size($lhs_head))) )
@@ -97,31 +97,112 @@ function meinsum(expr)
     unique!(rhs_tensors)
     rhs_heads = [ decomposetensor(t)[1] for t in rhs_tensors ]
     append!(let_args, :($h = $h) for h in rhs_heads )
-    append!(let_args, :($gi = $i) for (i,gi) in zip(rhs_idxs,gen_idxs) )
-    append!(let_args, :($gi = $i) for (i,gi) in zip(rhs_cidxs,gen_cidxs) )
+    append!(let_args, :($gi = $i) for (i,gi) in pairs(idx_dict) )
+    append!(let_args, :($gi = $i) for (i,gi) in pairs(conidx_dict) )
     append!(let_args, i for i in rhs_idxs )
-    append!(let_args, i for i in rhs_cidxs )
+    append!(let_args, i for i in rhs_conidxs )
     unique!(let_args)
 
-    # setup loop arguments
-    loop_idxs      = [ :($i = $gi) for (i,gi) in zip(rhs_idxs,gen_idxs) ]
-    innerloop_idxs = [ :($i = $gi) for (i,gi) in zip(rhs_cidxs,gen_cidxs) ]
+    # construct the let body by decomposing the expression into a contraction stack
+    computestack = make_compute_stack(expr)
+    @assert length(computestack) >= 1
+    loops = Expr[]
+    # last stack element always computes the initial lhs
+    _, tmpexpr = pop!(computestack)
+    tmpexpr.head = :(+=)
+    conidxs = getallindices(getrhs(tmpexpr))
+    init_tmpvars = Any[]
+    thebody = Expr(:block, tmpexpr)
+    theloop = Expr(:for, Expr(:block, [ :($i = $(allidx_dict[i])) for i in conidxs ]...), thebody)
+    for (tmplhs, tmprhs) in reverse(computestack)
 
-    # setup for loops
-    # only here we manipulate expr by converting it from = to + to accumulate result in LHS
-    addup_expr = Expr(:(+=), expr.args...)
-    innerfor_loop = Expr(:for, Expr(:block, innerloop_idxs...), addup_expr)
-    for_loop = if istensor(lhs)
-        Expr(:for, Expr(:block, loop_idxs...), innerfor_loop)
-    else
-        innerfor_loop
+        openidxs = getindices(tmplhs)
+        conidxs = getcontractedindices(tmprhs)
+        # loop = Expr(:block)
+        # if !isempty(openidxs)
+        #     lengths = [ :(length(i)) for i in openidxs ]
+        #     push!(loop.args, :($tmplhs = zeros($(lengths...))))
+        # end
+        # push!(loop.args, Expr(:for,
+        #                       Expr(:block, [ :($i = $(allidx_dict[i])) for i in conidxs ]...),
+        #                       :($tmplhs += $tmprhs)) )
+        loop = Expr(:for, Expr(:block, [ :($i = $(allidx_dict[i])) for i in conidxs ]...),
+                          :($tmplhs += $tmprhs) )
+        pushfirst!(thebody.args, loop)
+
+        # also need to initialize the temporary variables
+        if !isempty(openidxs)
+            lengths = [ :(length($(allidx_dict[i]))) for i in openidxs ]
+            head, _ = decomposetensor(tmplhs)
+            push!(init_tmpvars, :($head = zeros(Basic, $(lengths...))))
+        else
+            push!(init_tmpvars, :($tmplhs = 0))
+        end
     end
+    # display(theloop)
 
-    code = Expr(:let, Expr(:block, let_args...), Expr(:block, for_loop, lhs_head))
+    # # setup loop arguments
+    # loop_idxs      = [ :($i = $gi) for (i,gi) in zip(rhs_idxs,gen_idxs) ]
+    # innerloop_idxs = [ :($i = $gi) for (i,gi) in zip(rhs_cidxs,gen_cidxs) ]
+
+    # # setup for loops
+    # # only here we manipulate expr by converting it from = to + to accumulate result in LHS
+    # addup_expr = Expr(:(+=), expr.args...)
+    # innerfor_loop = Expr(:for, Expr(:block, innerloop_idxs...), addup_expr)
+    # for_loop = if istensor(lhs)
+    #     Expr(:for, Expr(:block, loop_idxs...), innerfor_loop)
+    # else
+    #     innerfor_loop
+    # end
+    #
+    # code = Expr(:let, Expr(:block, let_args...), Expr(:block, for_loop, lhs_head))
+
+    code = Expr(:let, Expr(:block, let_args...), Expr(:block, init_tmpvars..., theloop, lhs_head))
 
     return code
 
 end
+
+
+function make_compute_stack(expr)
+
+    stack = Tuple{Any,Expr}[]
+    istensor(expr) && iscontraction(expr) && return stack
+
+    # !iscontraction(expr) && return stack
+    new_ex = MacroTools.postwalk(expr) do ex
+
+        !iscontraction(ex) && return ex
+
+        # extract contraction into separate expression
+        contracted, rest = decomposecontraction(ex)
+        contraction = Expr(:call, :*)
+        append!(contraction.args, contracted)
+        # generate a tensor head for the contraction so we can refer to it later
+        openidxs = getindices(contraction)
+        gend_head = gensym()
+        contracted_tensor = if isempty(openidxs)
+            gend_head
+        else
+            Expr(:ref, gend_head, openidxs...)
+        end
+        # and push it to the compute stack
+        push!(stack, (contracted_tensor, contraction))
+
+        # rewrite the current expression by replacing the contraction with the generated tensor
+        new_ex = if isempty(rest)
+            contracted_tensor
+        else
+            new_ex = Expr(:call, :*)
+            append!(new_ex.args, rest)
+            push!(new_ex.args, contracted_tensor)
+        end
+
+        return new_ex
+    end
+
+    push!(stack, (nothing, new_ex))
+    return stack
 end
 
 

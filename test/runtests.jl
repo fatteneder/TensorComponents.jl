@@ -524,7 +524,7 @@ end
 @testset "meinsum" begin
 
     A,B,C = [ TC.SymbolicTensor(s,4,4) for s in (:A,:B,:C) ]
-    i,j,k = [ TC.Index(4) for _ = 1:4 ]
+    i,j,k = [ TC.Index(4) for _ = 1:3 ]
 
     expected = B
     got = TC.@meinsum begin
@@ -536,7 +536,7 @@ end
     got = TC.@meinsum begin
         A[i,j] = B[i,k] * B[k,j] + C[i,j]
     end
-    @test_broken got == expected
+    @test got == expected
 
     expected = sum(bik -> bik^2, B[:])
     got = TC.@meinsum begin
