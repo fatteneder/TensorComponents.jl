@@ -207,7 +207,8 @@ end
 getallindices(ex) = unique(_getallindices(ex))
 function _getallindices(ex::Expr)
     if isscalarexpr(ex)
-        return []
+        hasindices(ex) && return reduce(vcat, [ _getallindices(a) for a in ex.args[2:end] ])
+        return Any[]
     elseif istensor(ex)
         return ex.args[2:end]
     elseif isgeneraltensor(ex)

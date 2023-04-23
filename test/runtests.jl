@@ -439,6 +439,7 @@ end
     @test TC.getallindices(:(A[i,j] * B[j] - C[i,j] * D[j])) == [:i,:j]
     @test TC.getallindices(:((a + b)^c * A[i,j] * B[x] - C[y,z] * D[j] / x * y^2)) == [:i,:j,:x,:y,:z]
     @test TC.getallindices(:(A[i,j] * (b * B[k] - c * C[k]) / d)) == [:i,:j,:k]
+    @test TC.getallindices(:((D[k] * D[k] + b) * C[i,j])) |> sort == [:i,:j,:k]
 
     # TODO This should fail with comprehensive msg
     @test_skip TC.getallindices(:(C[k]^3)) == [:k]
