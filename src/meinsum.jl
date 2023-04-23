@@ -344,6 +344,22 @@ function decomposetensor(ex)
 end
 
 
+function decomposecontraction(ex)
+    !iscontraction(ex) && return [], []
+    istensor(ex) && return [ex], []
+    cidxs = getcontractedindices(ex)
+    is = findall(ex.args) do a
+        !istensor(a) && return false
+        idxs = getallindices(a)
+        return any(ci -> ci in cidxs, idxs)
+    end
+    contracted = ex.args[is]
+    rest = [ ex.args[i] for i = 1:length(ex.args)
+            if i != 1 #= ex.args[1] === :* =# && !(i in is) ]
+    return contracted, rest
+end
+
+
 # Remaining couplings to TensorOperations
 # istensor
 # isgeneraltensor
@@ -394,6 +410,20 @@ istensorexpr(ex::Number) = false
 
 # anything with indices is not a scalar expression
 isscalarexpr(ex) = !hasindices(ex)
+
+
+iscontraction(ex::Symbol) = false
+iscontraction(ex::Number) = false
+function iscontraction(ex)
+    istensor(ex) && !isempty(getcontractedindices(ex)) && return true
+    isgeneraltensor(ex) && return false
+    !istensorexpr(ex) && return false
+    !(ex.head === :call && length(ex.args) >= 3 && ex.args[1] === :* &&
+      count(a -> istensor(a), ex.args) >= 2) && return false
+    cidxs = getcontractedindices(ex)
+    isempty(cidxs) && return false
+    return true
+end
 
 
 # Any expression brackets ([ ] =^= ex.head === :rea) is considered to have indices, even :(A[])

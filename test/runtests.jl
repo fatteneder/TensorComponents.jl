@@ -443,6 +443,23 @@ end
     @test TC.getindices(:(A[i,k] * A[i,l] + B[l,k])) == [:k,:l]
     @test TC.getindices(:(A[i,i])) == []
 
+    @test TC.getcontractedindices(:(A[i,j])) == []
+    @test TC.getcontractedindices(:(A[i,j] * B[k,l])) == []
+    @test TC.getcontractedindices(:(A[i,j] * B[k,l] * C[k,l])) == [:k,:l]
+    @test TC.getcontractedindices(:(A[i,j] * B[k,l] + C[k,l] * D[i,j])) == []
+    @test TC.getcontractedindices(:(A[i,j] * B[k,l] + C[m,n] * D[o,p])) == []
+    @test TC.getcontractedindices(:(a)) == []
+    @test TC.getcontractedindices(:(a + b)) == []
+    @test TC.getcontractedindices(:((a + b)^c)) == []
+    @test TC.getcontractedindices(:((a + b)^c * A[i,j])) == []
+    @test TC.getcontractedindices(:(A[i,j] * B[j] - C[i,j] * D[j])) == [:j]
+    @test TC.getcontractedindices(:((a + b)^c * A[i,j] * B[x] - C[y,z] * D[j] / x * y^2)) == []
+    @test TC.getcontractedindices(:(A[i,j] * (b * B[k] - c * C[k]) / d)) == []
+    @test TC.getcontractedindices(:(A[i,j] * A[i,j])) == [:i,:j]
+    @test TC.getcontractedindices(:(A[i,k] * A[i,l])) == [:i]
+    @test TC.getcontractedindices(:(A[i,k] * A[i,l] + B[l,k])) == [:i]
+    @test TC.getcontractedindices(:(A[i,i])) == [:i]
+
 
     @test TC.gettensors(:(A[i,j])) == [ :(A[i,j]) ]
     @test TC.gettensors(:(A[i,j] * B[k,l])) == [ :(A[i,j]), :(B[k,l]) ]
@@ -456,6 +473,12 @@ end
     @test TC.gettensors(:(A[i,j] * B[j] - C[i,j] * D[j])) == [ :(A[i,j]), :(B[j]), :(C[i,j]), :(D[j]) ]
     @test TC.gettensors(:((a + b)^c * A[i,j] * B[x] - C[y,z] * D[j] / x * y^2)) == [ :(A[i,j]), :(B[x]), :(C[y,z]), :(D[j]) ]
     @test TC.gettensors(:(A[i,j] * (b * B[k] - c * C[k]) / d)) == [ :(A[i,j]), :(B[k]), :(C[k]) ]
+
+
+    @test TC.decomposecontraction(:(A[i,j])) == ([],[])
+    @test TC.decomposecontraction(:(A[i,j] * B[k,l])) == ([], [])
+    @test TC.decomposecontraction(:(a * A[i,j] * B[i,j])) == ([:(A[i,j]), :(B[i,j])], [:a])
+    @test TC.decomposecontraction(:(A[i,i])) == ([:(A[i,i])], [])
 
 
     # ### invalid use
