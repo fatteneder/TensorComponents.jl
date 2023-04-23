@@ -357,7 +357,8 @@ end
     @test TC.isscalarexpr(:(a * A[i,j])) == false
     @test TC.isscalarexpr(:(a \ A[i,j])) == false
     @test TC.isscalarexpr(:(a / A[i,j])) == false
-    @test TC.isscalarexpr(:(a / A[i,j] + B[i,j])) == false
+    @test_throws ArgumentError TC.isscalarexpr(:(a / A[i,j] + B[i,j])) # because a / A[i,j] is not a tensor
+    @test TC.isscalarexpr(:(a + A[i] * A[i])) == true
 
     @test TC.istensor(:(a)) == false
     @test TC.istensor(:(A[i,j])) == true
@@ -406,6 +407,8 @@ end
     @test TC.istensorexpr(:(α * A[i, j] * B[k, l] + (β / C[k, l]) * D[i, j])) == false
     @test TC.istensorexpr(:((a + b)^c * A[i,j] * B[j] - C[i,j] * D[j] / x * y^2)) == true
     @test TC.istensorexpr(:(A[i,j] * (b * B[k] - c * C[k]) / d)) == true
+    @test TC.istensorexpr(:((D[k] * D[k] + b) * C[i,j])) == true
+
     @test TC.iscontraction(:(a)) == false
     @test TC.iscontraction(:(A[i,j])) == false
     @test TC.iscontraction(:(A[i,j] + a)) == false

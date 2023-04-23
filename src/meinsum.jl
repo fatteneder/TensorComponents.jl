@@ -408,15 +408,24 @@ istensorexpr(ex::Symbol) = false
 istensorexpr(ex::Number) = false
 
 
-# anything with indices is not a scalar expression
-isscalarexpr(ex) = !hasindices(ex)
+# anything with open indices is not a scalar expression
+# TODO Fix isscalarexpr(:(D[k] * D[k] + b)) == true
+# isscalarexpr(ex) = !hasindices(ex)
+isscalarexpr(ex::Symbol) = true
+isscalarexpr(ex::Number) = true
+function isscalarexpr(ex)
+    !hasindices(ex) && return true
+    ex.head === :call && length(ex.args) >= 3 && ex.args[1] in (:+,:-) &&
+        return all(a -> isscalarexpr(a) || isempty(getindices(a)), ex.args[2:end])
+    return false
+end
 
 
 iscontraction(ex::Symbol) = false
 iscontraction(ex::Number) = false
 function iscontraction(ex)
     istensor(ex) && !isempty(getcontractedindices(ex)) && return true
-    isgeneraltensor(ex) && return false
+    isgeneraltensor(ex) && return any(a -> iscontraction(a), ex.args[2:end])
     !istensorexpr(ex) && return false
     !(ex.head === :call && length(ex.args) >= 3 && ex.args[1] === :* &&
       count(a -> istensor(a), ex.args) >= 2) && return false
@@ -426,7 +435,7 @@ function iscontraction(ex)
 end
 
 
-# Any expression brackets ([ ] =^= ex.head === :rea) is considered to have indices, even :(A[])
+# Any expression brackets ([ ] =^= ex.head === :ref) is considered to have indices, even :(A[])
 function hasindices(ex)
     ex.head === :ref && return true
     ex.head === :call && length(ex.args) >= 3 && any(a -> hasindices(a), ex.args[2:end]) && return true
