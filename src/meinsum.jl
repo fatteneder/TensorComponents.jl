@@ -33,21 +33,95 @@ end
 
 
 function meinsum(expr)
+
+    expr = MacroTools.postwalk(rmlines, expr)
+    expr = MacroTools.flatten(expr)
+
+    @assert isassignment(expr)
+    lhs, rhs = getlhs(expr), getrhs(expr)
+
     # 1. setup
     # - get all open indices LHS
     # - get all open indices RHS
     # getopenindices should already check for consistency in a tensor expression
-    lhs_idxs = getopenindices(lhs)
-    rhs_idxs = getopenindices(rhs)
+    lhs_idxs = getindices(lhs)
+    rhs_idxs = getindices(rhs)
 
     # 2. verify
     # - make sure there are no contracted indices on the LHS
     # - make sure there are the same open indices on both sides
     @assert isempty(getcontractedindices(lhs))
-    @assert isperm(toperm(lhs_idxs,lhs_idxs), toperm(rhs_idxs,lhs_idxs))
+    @assert ispermutation(rhs_idxs, permutation_catalog(lhs_idxs))
     rhs_cidxs = getcontractedindices(rhs)
 
-    # 3. constract
+    # 3. unroll and contract
+    # loop_idxs      = [ :($i = TensorComponents.start($i):TensorComponents.stop($i)) for i in rhs_idxs ]
+    # innerloop_idxs = [ :($i = TensorComponents.start($i):TensorComponents.stop($i)) for i in rhs_cidxs ]
+
+    # we want to loop over the expr as it is (don't replace any symbols or indices) to keep
+    # debugging simple
+    # but since we sum over all indices (duplicated ones for contraction, open ones to
+    # fill the resulting array), we need to locally rename each index's range, e.g. consider
+    # ```
+    # i, j = Index(4), Index(4)
+    # A, B = TC.SymbolicTensor(:A,4,4), TC.SymbolicTensor(:B,4,4)
+    # @meinsum A[i,j] = B[i,j]
+    # ```
+    # the macro should then expand to
+    # ```
+    # let A = zeros(eltype(A),A), B = B, var"#i#123" = i, var"#j#124" = j, i, j
+    #   for i = var"#i#123", j = var"#j#124"
+    #       A[i,j] += B[i,j]
+    #   end
+    #   A
+    # end
+    # ```
+
+    # gensym all indices
+    gen_idxs  = [ gensym(idx) for idx in rhs_idxs ]
+    gen_cidxs = [ gensym(idx) for idx in rhs_cidxs ]
+
+    # setup let args
+    let_args = Any[]
+    # display(istensor(lhs))
+    lhs_head = if istensor(lhs)
+        lhs_head = first(decomposetensor.(gettensors(lhs)))[1]
+        push!(let_args, :($lhs_head = zeros(eltype($lhs_head),size($lhs_head))) )
+        lhs_head
+    else
+        lhs_head = lhs
+        push!(let_args, :($lhs_head = 0)) # don't need a copy
+        lhs_head
+    end
+    rhs_tensors = gettensors(rhs)
+    unique!(rhs_tensors)
+    rhs_heads = [ decomposetensor(t)[1] for t in rhs_tensors ]
+    append!(let_args, :($h = $h) for h in rhs_heads )
+    append!(let_args, :($gi = $i) for (i,gi) in zip(rhs_idxs,gen_idxs) )
+    append!(let_args, :($gi = $i) for (i,gi) in zip(rhs_cidxs,gen_cidxs) )
+    append!(let_args, i for i in rhs_idxs )
+    append!(let_args, i for i in rhs_cidxs )
+    unique!(let_args)
+
+    # setup loop arguments
+    loop_idxs      = [ :($i = $gi) for (i,gi) in zip(rhs_idxs,gen_idxs) ]
+    innerloop_idxs = [ :($i = $gi) for (i,gi) in zip(rhs_cidxs,gen_cidxs) ]
+
+    # setup for loops
+    # only here we manipulate expr by converting it from = to + to accumulate result in LHS
+    addup_expr = Expr(:(+=), expr.args...)
+    innerfor_loop = Expr(:for, Expr(:block, innerloop_idxs...), addup_expr)
+    for_loop = if istensor(lhs)
+        Expr(:for, Expr(:block, loop_idxs...), innerfor_loop)
+    else
+        innerfor_loop
+    end
+
+    code = Expr(:let, Expr(:block, let_args...), Expr(:block, for_loop, lhs_head))
+
+    return code
+
+end
 end
 
 
@@ -253,7 +327,6 @@ _gettensors!(vars, ex::Number) = nothing
 
 
 function decomposetensor(ex)
-    display(ex)
     if istensor(ex)
         return (ex.args[1], ex.args[2:end])
     elseif isgeneraltensor(ex)

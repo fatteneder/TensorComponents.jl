@@ -461,3 +461,29 @@ end
     # @test_throws ArgumentError TC.getopenindices(:(α * A[i,j] * B[k,l] + β / C[k,l] * D[i,j]))
     # @test_throws ArgumentError TC.getopenindices(:(β \ C[k,l] * D[i,j]))
 end
+
+
+@testset "meinsum" begin
+
+    A,B,C = [ TC.SymbolicTensor(s,4,4) for s in (:A,:B,:C) ]
+    i,j,k = [ TC.Index(4) for _ = 1:4 ]
+
+    expected = B
+    got = TC.@meinsum begin
+        A[i,j] = B[i,j]
+    end
+    @test got == expected
+
+    expected = B * B .+ C
+    got = TC.@meinsum begin
+        A[i,j] = B[i,k] * B[k,j] + C[i,j]
+    end
+    @test_broken got == expected
+
+    expected = sum(bik -> bik^2, B[:])
+    got = TC.@meinsum begin
+        A = B[i,k] * B[i,k]
+    end
+    @test got == expected
+
+end
