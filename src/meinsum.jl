@@ -227,12 +227,17 @@ _getallindices(ex::Int) = []
 #     unique!(openidxs)
 #     return openidxs
 # end
+
+# =^= getopenindices
 getindices(ex) = unique(_getindices(ex))
 function _getindices(ex::Expr)
     if isscalarexpr(ex)
         return []
     elseif istensor(ex)
-        return ex.args[2:end]
+        idxs = ex.args[2:end]
+        uidxs = unique(ex.args[2:end])
+        is_notdup = findall(i -> count(j -> j == i, idxs) == 1, idxs)
+        return isempty(is_notdup) ? Any[] : idxs[is_notdup]
     elseif isgeneraltensor(ex)
         allidxs = reduce(vcat, _getindices(a) for a in ex.args[2:end]; init=[])
         idxs = filter(i -> count(j -> j == i, allidxs) == 1, allidxs)

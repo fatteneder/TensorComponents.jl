@@ -438,6 +438,10 @@ end
     @test TC.getindices(:(A[i,j] * B[j] - C[i,j] * D[j])) == [:i]
     @test TC.getindices(:((a + b)^c * A[i,j] * B[x] - C[y,z] * D[j] / x * y^2)) == [:i,:j,:x,:y,:z]
     @test TC.getindices(:(A[i,j] * (b * B[k] - c * C[k]) / d)) == [:i,:j,:k]
+    @test TC.getindices(:(A[i,j] * A[i,j])) == []
+    @test TC.getindices(:(A[i,k] * A[i,l])) == [:k,:l]
+    @test TC.getindices(:(A[i,k] * A[i,l] + B[l,k])) == [:k,:l]
+    @test TC.getindices(:(A[i,i])) == []
 
 
     @test TC.gettensors(:(A[i,j])) == [ :(A[i,j]) ]
