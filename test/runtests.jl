@@ -527,21 +527,21 @@ end
     i,j,k = [ TC.Index(4) for _ = 1:3 ]
 
     expected = B
-    got = TC.@meinsum begin
-        A[i,j] = B[i,j]
-    end
+    got = TC.@meinsum A[i,j] = B[i,j]
     @test got == expected
 
     expected = B * B .+ C
-    got = TC.@meinsum begin
-        A[i,j] = B[i,k] * B[k,j] + C[i,j]
-    end
+    got = TC.@meinsum A[i,j] = B[i,k] * B[k,j] + C[i,j]
     @test got == expected
 
     expected = sum(bik -> bik^2, B[:])
-    got = TC.@meinsum begin
-        A = B[i,k] * B[i,k]
-    end
+    got = TC.@meinsum A = B[i,k] * B[i,k]
+    @test got == expected
+
+    D = TC.SymbolicTensor(:D,4)
+    E = TC.SymbolicTensor(:E,4,4,4)
+    expected = [ tr(E[i,:,:]) for i = 1:4 ]
+    got = TC.@meinsum D[i] = E[i,k,k]
     @test got == expected
 
 end

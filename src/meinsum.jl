@@ -157,6 +157,7 @@ function meinsum(expr)
     #
     # code = Expr(:let, Expr(:block, let_args...), Expr(:block, for_loop, lhs_head))
 
+    # TODO Add asserts for tensor sizes
     code = Expr(:let, Expr(:block, let_args...), Expr(:block, init_tmpvars..., theloop, lhs_head))
 
     return code
@@ -176,8 +177,14 @@ function make_compute_stack(expr)
 
         # extract contraction into separate expression
         contracted, rest = decomposecontraction(ex)
-        contraction = Expr(:call, :*)
-        append!(contraction.args, contracted)
+        contraction = if length(contracted) == 1
+            contracted[1]
+        else
+            Expr(:call, :*, contracted...)
+            # contraction = Expr(:call, :*)
+            # append!(contraction.args, contracted)
+            # contraction
+        end
         # generate a tensor head for the contraction so we can refer to it later
         openidxs = getindices(contraction)
         gend_head = gensym()
