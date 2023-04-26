@@ -294,6 +294,21 @@ end
     δ = TC.delta_symbol(3)
     @test δ == diagm(ones(3))
 
+    @test TC.count_operations(:(a + b)) == Dict(:+ => 1)
+    @test TC.count_operations(:(a + 2b + c)) == Dict(:+ => 2, :* => 1)
+    @test TC.count_operations(:(a + b * c)) == Dict(:+ => 1, :* => 1)
+    @test TC.count_operations(:(a + 2b)) == Dict(:+ => 1, :* => 1)
+    @test TC.count_operations(:((a + b)^2 * c)) == Dict(:+ => 1, :* => 1, :^ => 1)
+    @test TC.count_operations(:(tan(a + b)^2 / (4^3 - 1))) == Dict(:+ => 1, :- => 1,
+                                                                   :^ => 2, :/ => 1,
+                                                                   :tan => 1)
+
+    exs = [ :(a + b), :(b + c), :(a * b - c), :(d^-3 * tan(a/b) / f) ]
+    ops = TC.count_operations.(exs)
+    expected = Dict(:+ => 1+1, :* => 1+1, :- => 1, :^ => 1, :tan => 1, :/ => 2)
+    got = TC.mergecounts(ops...)
+    @test expected == got
+
 end
 
 
