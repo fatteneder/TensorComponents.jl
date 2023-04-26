@@ -47,6 +47,16 @@ function meinsum(expr)
     lhs_idxs = getindices(lhs)
     rhs_idxs = getindices(rhs)
 
+    if lhs_idxs != rhs_idxs
+        throw(ArgumentError("@meinsum: unbalanced open indices between lhs and rhs"))
+    end
+    if rhs isa Expr && rhs.head === :call && rhs.args[1] in (:+,:-)
+        rhs_idxs_list = getindices.(rhs.args[2:end])
+        if any(idxs -> idxs != rhs_idxs, rhs_idxs_list)
+            throw(ArgumentError("@meinsum: inconsistent open indices on rhs"))
+        end
+    end
+
     # 2. verify
     # - make sure there are no contracted indices on the LHS
     # - make sure there are the same open indices on both sides

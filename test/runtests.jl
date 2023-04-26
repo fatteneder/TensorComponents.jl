@@ -148,15 +148,15 @@ const TO = TensorOperations
 
     # invalid contractions (errors coming from TensorOperations.@tensor
     # so we need to use @eval to force evaluation of @tensor)
-    @test_throws TO.IndexError eval(TC.components(quote
+    @test_throws LoadError eval(TC.components(quote
         @index i, j, k = 4
         A[i,j] = B[i,j,j]
     end))
-    @test_throws TO.IndexError eval(TC.components(quote
+    @test_throws LoadError eval(TC.components(quote
         @index i, j = 1:4
         A[i,j] = B[i,j,j]
     end))
-    @test_throws TO.IndexError eval(TC.components(quote
+    @test_throws LoadError eval(TC.components(quote
         @index i, j, k = 3
         A[i,j] = B[i,j] + C[k]
     end))
