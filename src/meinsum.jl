@@ -223,75 +223,6 @@ function make_compute_stack(expr)
 end
 
 
-# examples
-#
-# A[i,j]
-# ->
-# [i,j]
-#
-# (a *) A[i,j] * B[j]
-# ->
-# [i]
-#
-# a * A[i,j] * B[j] + C[i]
-# ->
-# [i]
-#
-# A[i,j] + C[i]
-# ->
-# error invalid contraction pattern
-#
-# A[i,j] + c
-# ->
-# [i,j]
-
-
-# function getallindices2(ex)
-#
-#     isscalarexpr(ex) && return Any[], Any[]
-#     !istensorexpr(ex) && throw(ArgumentError("not a tensor expression: $ex"))
-#
-#     idxs, contracted = Any[], Any[]
-#     idxs = if istensor(ex)
-#         getallindices(ex)
-#     elseif ex.head === :call && ex.args[1] in (:+,:-)
-#         allsubidxs = [ getallindices2(a) for a in ex.args[2:end] ]
-#         allopensubidxs = [ idxs[1] for idxs in allsubidxs ]
-#         catalog = permutation_catalog(first(allopensubidxs))
-#         if !all(sidxs -> ispermutation(sidxs, catalog), allopensubidxs)
-#             throw(ArgumentError("inconsistent contraction pattern: $ex"))
-#         end
-#         append!(contracted, reduce(vcat, a[2] for a in allsubidxs))
-#         append!(idxs, first(allopensubidxs))
-#     elseif ex.head === :call && ex.args[1] === :*
-#         append!(idxs,
-#                 reduce(vcat, [ istensorexpr(a) ? getallindices(a) : [] for a in ex.args[2:end] ])
-#                )
-#     elseif ex.head === :call && ex.args[1] === :/
-#         append!(idxs, getallindices(ex.args[2]))
-#     # elseif ex.head === :call && ex.args[1] === :\
-#     #     append!(idxs, getindices(ex.args[3]))
-#     else
-#         throw(ex)
-#     end
-#
-#     # @show ex
-#     # display(idxs)
-#     # display(contracted)
-#
-#     # filter contracted indices (=^= appear exactly twice)
-#     # TODO Enforce exactly twice somewhere ...
-#     # contracted = [ i for i in idxs if count(j -> i == j, idxs) > 1 ]
-#     append!(contracted, i for i in idxs if count(j -> i == j, idxs) > 1)
-#     foreach(d -> filter!(i -> i != d, idxs), contracted)
-#     unique!(contracted)
-#     # display(idxs)
-#     # display(contracted)
-#
-#     return idxs, contracted
-# end
-
-
 # TODO Figure out what these should do
 # - getallindices ... all indices, but unique
 # - getindices ... only open indices
@@ -320,12 +251,7 @@ end
 _getallindices(ex::Symbol) = []
 _getallindices(ex::Int) = []
 
-# function getopenindices(ex)
-#     allidxs = _getallindices(ex)
-#     openidxs = filter(i -> count(j -> i == j, allidxs) == 1, allidxs)
-#     unique!(openidxs)
-#     return openidxs
-# end
+
 
 # =^= getopenindices
 getindices(ex) = unique(_getindices(ex))
