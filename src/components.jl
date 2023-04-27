@@ -187,12 +187,12 @@ function parse_heads_idxpairs_symmetries(exprs)
             error("@components: @symmetry: inconsistent index pattern found in '$ex'")
         end
 
-        heads_idxs_lhs = TO.decomposetensor.(TO.gettensors(lhs))
-        heads_idxs_rhs = TO.decomposetensor.(TO.gettensors(rhs))
+        heads_idxs_lhs = decomposetensor.(TO.gettensors(lhs))
+        heads_idxs_rhs = decomposetensor.(TO.gettensors(rhs))
 
         start = length(length(idxpairs))
         for heads_idxs in (heads_idxs_lhs, heads_idxs_rhs)
-            for (_,idxs,_) in heads_idxs
+            for (_,idxs) in heads_idxs
                 push!(heads, head)
                 push!(idxpairs, idxs)
             end
@@ -224,9 +224,9 @@ function parse_heads_idxpairs_equations(eqs)
         end
 
         lhs_heads_idxs = if istensorexpr(lhs)
-            TO.decomposetensor.(TO.gettensors(lhs))
+            decomposetensor.(TO.gettensors(lhs))
         elseif isscalarexpr(lhs)
-            [ (lhs, [], []) ]
+            [ (lhs, []) ]
         else
             error("@components: This should not have happened; don't know how to handle: '$lhs'!")
         end
@@ -237,19 +237,19 @@ function parse_heads_idxpairs_equations(eqs)
         end
 
         rhs_heads_idxs = if istensorexpr(rhs)
-            heads_idxs = TO.decomposetensor.(TO.gettensors(rhs))
+            heads_idxs = decomposetensor.(TO.gettensors(rhs))
             scalars = unique(reduce(vcat, getscalars.(getcoeffs(rhs)), init=Symbol[]))
-            append!(heads_idxs, (s,[],[]) for s in scalars)
+            append!(heads_idxs, (s,[]) for s in scalars)
             heads_idxs
         elseif isscalarexpr(rhs)
             coeffs = getcoeffs(rhs)
             scalars = unique(reduce(vcat, getscalars.(coeffs)))
-            [ (s, [], []) for s in scalars ]
+            [ (s, []) for s in scalars ]
         else
             error("@components: This should not have happened; don't know how to handle: '$rhs'!")
         end
 
-        for heads_idxs in (lhs_heads_idxs, rhs_heads_idxs), (head, idxs, _) in heads_idxs
+        for heads_idxs in (lhs_heads_idxs, rhs_heads_idxs), (head, idxs) in heads_idxs
 
             # check if we already encountered this tensor
             # and verify that its rank did not change
@@ -424,7 +424,7 @@ function generate_code_unroll_equations(eq)
         # can't capture scalars here (easily), because postwalk will also visit indices (if
         # there are any) and classify those as scalars ...
         !istensor(node) && return node
-        heads_idxs = TO.decomposetensor(node)
+        heads_idxs = decomposetensor(node)
         head, idxs = heads_idxs[1], heads_idxs[2]
         gend_head = gensym(head)
         push!(gend_lhs_heads_idxs, (head, gend_head, idxs, heads_idxs[2:end]...))
@@ -444,7 +444,7 @@ function generate_code_unroll_equations(eq)
     gend_rhs_heads_idxs = []
     rhs = MacroTools.postwalk(rhs) do node
         !istensor(node) && return node
-        heads_idxs = TO.decomposetensor(node)
+        heads_idxs = decomposetensor(node)
         head, idxs = heads_idxs[1], heads_idxs[2]
         gend_head = gensym(head)
         push!(gend_rhs_heads_idxs, (head, gend_head, idxs, heads_idxs[2:end]...))
@@ -523,10 +523,10 @@ function generate_code_resolve_symmetries(ex_sym)
     gend_lhs_heads_idxs = []
     gend_lhs = MacroTools.postwalk(lhs) do node
         !istensor(node) && return node
-        heads_idxs = TO.decomposetensor(node)
+        heads_idxs = decomposetensor(node)
         head = heads_idxs[1]
         gend_head = gensym(head)
-        push!(gend_lhs_heads_idxs, (head, gend_head, heads_idxs[2:end]...))
+        push!(gend_lhs_heads_idxs, (head, gend_head, heads_idxs[2]))
         newnode = MacroTools.postwalk(node) do h
             h === head ? gend_head : h
         end
@@ -535,10 +535,10 @@ function generate_code_resolve_symmetries(ex_sym)
     gend_rhs_heads_idxs = []
     gend_rhs = MacroTools.postwalk(rhs) do node
         !istensor(node) && return node
-        heads_idxs = TO.decomposetensor(node)
+        heads_idxs = decomposetensor(node)
         head = heads_idxs[1]
         gend_head = gensym(head)
-        push!(gend_rhs_heads_idxs, (head, gend_head, heads_idxs[2:end]...))
+        push!(gend_rhs_heads_idxs, (head, gend_head, heads_idxs[2]))
         newnode = MacroTools.postwalk(node) do h
             h === head ? gend_head : h
         end
@@ -547,9 +547,9 @@ function generate_code_resolve_symmetries(ex_sym)
 
     # define views of lhs and rhs tensors, if any
     vlhs_tensors = [ :($ghead = view($head, $(idxs...)))
-                    for (head,ghead,idxs,_) in gend_lhs_heads_idxs if length(idxs) > 0 ]
+                    for (head,ghead,idxs) in gend_lhs_heads_idxs if length(idxs) > 0 ]
     vrhs_tensors = [ :($ghead = view($head, $(idxs...)))
-                    for (head,ghead,idxs,_) in gend_rhs_heads_idxs if length(idxs) > 0 ]
+                    for (head,ghead,idxs) in gend_rhs_heads_idxs if length(idxs) > 0 ]
 
     eqvar = gensym(:eq)
     eqs_idxs = first(gend_lhs_heads_idxs)[3]
