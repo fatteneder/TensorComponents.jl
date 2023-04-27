@@ -187,8 +187,8 @@ function parse_heads_idxpairs_symmetries(exprs)
             error("@components: @symmetry: inconsistent index pattern found in '$ex'")
         end
 
-        heads_idxs_lhs = decomposetensor.(TO.gettensors(lhs))
-        heads_idxs_rhs = decomposetensor.(TO.gettensors(rhs))
+        heads_idxs_lhs = decomposetensor.(gettensors(lhs))
+        heads_idxs_rhs = decomposetensor.(gettensors(rhs))
 
         start = length(length(idxpairs))
         for heads_idxs in (heads_idxs_lhs, heads_idxs_rhs)
@@ -224,7 +224,7 @@ function parse_heads_idxpairs_equations(eqs)
         end
 
         lhs_heads_idxs = if istensorexpr(lhs)
-            decomposetensor.(TO.gettensors(lhs))
+            decomposetensor.(gettensors(lhs))
         elseif isscalarexpr(lhs)
             [ (lhs, []) ]
         else
@@ -237,7 +237,7 @@ function parse_heads_idxpairs_equations(eqs)
         end
 
         rhs_heads_idxs = if istensorexpr(rhs)
-            heads_idxs = decomposetensor.(TO.gettensors(rhs))
+            heads_idxs = decomposetensor.(gettensors(rhs))
             scalars = unique(reduce(vcat, getscalars.(getcoeffs(rhs)), init=Symbol[]))
             append!(heads_idxs, (s,[]) for s in scalars)
             heads_idxs
