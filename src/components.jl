@@ -84,7 +84,7 @@ function decompose_expressions(exprs)
     for ex in exprs
         matched = MacroTools.@capture(ex, @index __)
         matched && (push!(idxs, ex); true) && continue
-        matched = TO.isassignment(ex)
+        matched = isassignment(ex)
         matched && (push!(eqs, ex); true) && continue
         matched = MacroTools.@capture(ex, @symmetry sym__)
         matched && (push!(syms, ex); true) && continue
@@ -162,11 +162,11 @@ function parse_heads_idxpairs_symmetries(exprs)
         # assuming all exprs start with @index
         MacroTools.@capture(ex, @symmetry args__)
 
-        if length(args) != 1 || !TO.isassignment(args[1])
+        if length(args) != 1 || !isassignment(args[1])
             error("@components: @symmtery: expected something like '@symmetry A[i,j] = A[i,j]', found '$ex'")
         end
 
-        lhs, rhs = TO.getlhs(args[1]), TO.getrhs(args[1])
+        lhs, rhs = getlhs(args[1]), getrhs(args[1])
 
         # TODO Can we support something like T[i,j] = k?
         if !TO.istensorexpr(lhs) || !TO.istensorexpr(rhs)
@@ -217,7 +217,7 @@ function parse_heads_idxpairs_equations(eqs)
     tensorheads, tensoridxs, linenrs = Symbol[], Vector{Any}[], Int[]
     for (nr, eq) in enumerate(eqs)
 
-        lhs, rhs = TO.getlhs(eq), TO.getrhs(eq)
+        lhs, rhs = getlhs(eq), getrhs(eq)
 
         if isfunctioncall(lhs)
             error("@components: LHS cannot involve function calls, found '$lhs'!")
@@ -320,7 +320,7 @@ function determine_independents(eqs)
 
     N == 0 && return ideps
 
-    LHSs, RHSs = TO.getlhs.(eqs), TO.getrhs.(eqs)
+    LHSs, RHSs = getlhs.(eqs), getrhs.(eqs)
 
     # everyting in rhs of first equation is independent
     rhs_ts = TO.gettensorobjects(RHSs[1])
@@ -415,7 +415,7 @@ end
 # A[A,B] * B, where B is a scalar and index.
 function generate_code_unroll_equations(eq)
 
-    lhs, rhs = TO.getlhs(eq), TO.getrhs(eq)
+    lhs, rhs = getlhs(eq), getrhs(eq)
 
     # replace all tensor heads with generated symbols, because we use views for each
     # indexed tensor, and some tensors might appear twice (although only on RHSs)
@@ -511,7 +511,7 @@ function generate_code_resolve_symmetries(ex_sym)
 
     MacroTools.@capture(ex_sym, @symmetry sym_)
 
-    lhs, rhs = TO.getlhs(sym), TO.getrhs(sym)
+    lhs, rhs = getlhs(sym), getrhs(sym)
 
     # extract the tensor for which we resolve symmetries
     # we already checked that there is exactly one
