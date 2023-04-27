@@ -249,7 +249,7 @@ end
 
 
 # =^= getopenindices
-getindices(ex) = unique(_getindices(ex))
+getindices(ex) = sort!(unique(_getindices(ex)))
 function _getindices(ex::Expr)
     if isfunctioncall(ex)
         return _getindices(ex.args[2])
