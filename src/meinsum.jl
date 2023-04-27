@@ -318,6 +318,11 @@ function gettensors(expr::Expr)
     return tensors
 end
 
+
+gettensorheads(ex) = []
+gettensorheads(expr::Expr) = [ tensor.args[1] for tensor in gettensors(expr) ]
+
+
 function decomposetensor(ex)
     if istensor(ex)
         return (ex.args[1], ex.args[2:end])

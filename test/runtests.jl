@@ -511,6 +511,19 @@ end
     @test TC.gettensors(:((a + b)^c * A[i,j] * B[x] - C[y,z] * D[j] / x * y^2)) == [ :(A[i,j]), :(B[x]), :(C[y,z]), :(D[j]) ]
     @test TC.gettensors(:(A[i,j] * (b * B[k] - c * C[k]) / d)) == [ :(A[i,j]), :(B[k]), :(C[k]) ]
 
+    @test TC.gettensorheads(:(A[i,j])) == [ :A ]
+    @test TC.gettensorheads(:(A[i,j] * B[k,l])) == [ :A, :B ]
+    @test TC.gettensorheads(:(A[i,j] * B[k,l] * C[k,l])) == [ :A, :B, :C ]
+    @test TC.gettensorheads(:(A[i,j] * B[k,l] + C[k,l] * D[i,j])) == [ :A, :B, :C, :D ]
+    @test TC.gettensorheads(:(A[i,j] * B[k,l] + C[m,n] * D[o,p])) == [ :A, :B, :C, :D ]
+    @test TC.gettensorheads(:(a)) == []
+    @test TC.gettensorheads(:(a + b)) == []
+    @test TC.gettensorheads(:((a + b)^c)) == []
+    @test TC.gettensorheads(:((a + b)^c * A[i,j])) == [ :A ]
+    @test TC.gettensorheads(:(A[i,j] * B[j] - C[i,j] * D[j])) == [ :A, :B, :C, :D ]
+    @test TC.gettensorheads(:((a + b)^c * A[i,j] * B[x] - C[y,z] * D[j] / x * y^2)) == [ :A, :B, :C, :D ]
+    @test TC.gettensorheads(:(A[i,j] * (b * B[k] - c * C[k]) / d)) == [ :A, :B, :C ]
+
 
     @test TC.decomposecontraction(:(A[i,i])) == ([:(A[i,i])], [])
     @test TC.decomposecontraction(:(A[i,j] * B[k,l])) == ([], [])

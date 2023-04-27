@@ -173,7 +173,7 @@ function parse_heads_idxpairs_symmetries(exprs)
             error("@components: @symmtery: expected symmetry relation for a tensor's components, e.g. something like '@symmetry A[i,j] = A[i,j]', found '$ex'")
         end
 
-        ts_lhs, ts_rhs = TO.gettensorobjects(lhs), TO.gettensorobjects(rhs)
+        ts_lhs, ts_rhs = gettensorheads(lhs), gettensorheads(rhs)
         ts = unique!(reduce(vcat, (ts_lhs, ts_rhs)))
         if length(ts) != 1
             error("@components: @symmetry: a relation can only involve one tensor, found multiple ones '$(join(ts,','))' in '$ex'")
@@ -323,12 +323,12 @@ function determine_independents(eqs)
     LHSs, RHSs = getlhs.(eqs), getrhs.(eqs)
 
     # everyting in rhs of first equation is independent
-    rhs_ts = TO.gettensorobjects(RHSs[1])
+    rhs_ts = gettensorheads(RHSs[1])
     append!(ideps, rhs_ts)
 
     N == 1 && return ideps
 
-    lhs_ts = TO.gettensorobjects(LHSs[1])
+    lhs_ts = gettensorheads(LHSs[1])
     if isscalarexpr(LHSs[1])
         push!(defined, LHSs[1])
     elseif length(lhs_ts) == 1
@@ -339,13 +339,13 @@ function determine_independents(eqs)
 
     for i in 2:N
         li, ri = LHSs[i], RHSs[i]
-        rhs_ts = TO.gettensorobjects(ri)
+        rhs_ts = gettensorheads(ri)
         for t in rhs_ts
             if !(t in defined)
                 push!(ideps, t)
             end
         end
-        lhs_ts = TO.gettensorobjects(li)
+        lhs_ts = gettensorheads(li)
         if isscalarexpr(li)
             push!(defined, li)
         elseif length(lhs_ts) == 1
@@ -515,8 +515,8 @@ function generate_code_resolve_symmetries(ex_sym)
 
     # extract the tensor for which we resolve symmetries
     # we already checked that there is exactly one
-    ts = TO.gettensorobjects(lhs)
-    head = !isempty(ts) ? ts[1] : TO.gettensorobjects(rhs)[1]
+    ts = gettensorheads(lhs)
+    head = !isempty(ts) ? ts[1] : gettensorheads(rhs)[1]
 
     # replace all tensor heads with generated symbols, because we use views for each
     # indexed tensor, and some tensors might appear twice (although on ly on RHSs)
