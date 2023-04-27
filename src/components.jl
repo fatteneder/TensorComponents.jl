@@ -145,7 +145,7 @@ end
 
 
 # Determine the tensor and all occuring index permutations used in the
-# provided symmetry relation which like look
+# provided symmetry relation which looks like
 # ```julia
 #     @symmetry A[i,j] = A[j,i]
 # ```
@@ -170,7 +170,7 @@ function parse_heads_idxpairs_symmetries(exprs)
 
         # TODO Can we support something like T[i,j] = k?
         if !TO.istensorexpr(lhs) || !TO.istensorexpr(rhs)
-            error("@components: @symmtery: expected symmetry relation for a tensor's components, e.g. omething like '@symmetry A[i,j] = A[i,j]', found '$ex'")
+            error("@components: @symmtery: expected symmetry relation for a tensor's components, e.g. something like '@symmetry A[i,j] = A[i,j]', found '$ex'")
         end
 
         ts_lhs, ts_rhs = TO.gettensorobjects(lhs), TO.gettensorobjects(rhs)
@@ -280,7 +280,7 @@ end
 
 function verify_tensors_indices(tensorheads, idxpairs, defined_idxs)
     allidxs = unique(reduce(vcat,idxpairs,init=Symbol[]))
-    undefined_idxs = [ idx for idx in allidxs if !(idx in defined_idxs) ]
+    undefined_idxs = [ idx for idx in allidxs if (!(idx isa Integer) && !(idx in defined_idxs)) ]
     filter!(i -> i isa Symbol, undefined_idxs)
     if !isempty(undefined_idxs)
         error("@components: undefined indices '$(join(undefined_idxs,','))'; you need to declare them with @index first")
@@ -320,8 +320,13 @@ function determine_independents(eqs)
     N == 1 && return ideps
 
     lhs_ts = TO.gettensorobjects(LHSs[1])
-    length(lhs_ts) != 1 && error("@components: found invalid LHS in '$(eqs[1])'")
-    push!(defined, lhs_ts[1])
+    if isscalarexpr(LHSs[1])
+        push!(defined, LHSs[1])
+    elseif length(lhs_ts) == 1
+        push!(defined, lhs_ts[1])
+    else
+        length(lhs_ts) != 1 && error("@components: found invalid LHS in '$(eqs[1])'")
+    end
 
     for i in 2:N
         li, ri = LHSs[i], RHSs[i]
@@ -332,8 +337,14 @@ function determine_independents(eqs)
             end
         end
         lhs_ts = TO.gettensorobjects(li)
-        length(lhs_ts) != 1 && error("@components: found invalid LHS in '$(eqs[i])'")
-        push!(defined, lhs_ts[1])
+        if isscalarexpr(li)
+            push!(defined, li)
+        elseif length(lhs_ts) == 1
+            push!(defined, lhs_ts[1])
+        else
+            length(lhs_ts) != 1 && error("@components: found invalid LHS in '$(eqs[1])'")
+        end
+        # push!(defined, lhs_ts[1])
     end
 
     unique!(ideps)
@@ -399,7 +410,7 @@ function generate_code_unroll_equations(eq)
     lhs, rhs = TO.getlhs(eq), TO.getrhs(eq)
 
     # replace all tensor heads with generated symbols, because we use views for each
-    # indexed tensor, and some tensors might appear twice (although on ly on RHSs)
+    # indexed tensor, and some tensors might appear twice (although only on RHSs)
     gend_lhs_heads_idxs = []
     lhs = MacroTools.postwalk(lhs) do node
         # can't capture scalars here (easily), because postwalk will also visit indices (if
@@ -429,8 +440,7 @@ function generate_code_unroll_equations(eq)
         heads_idxs = TO.decomposetensor(node)
         head, idxs = heads_idxs[1], heads_idxs[2]
         gend_head = gensym(head)
-        fixed_idxs = filter(i -> i isa Symbol, idxs)
-        push!(gend_rhs_heads_idxs, (head, gend_head, fixed_idxs, heads_idxs[2:end]...))
+        push!(gend_rhs_heads_idxs, (head, gend_head, idxs, heads_idxs[2:end]...))
         newnode = MacroTools.postwalk(node) do h
             h === head ? gend_head : h
         end
