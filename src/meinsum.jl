@@ -251,8 +251,8 @@ end
 # =^= getopenindices
 getindices(ex) = unique(_getindices(ex))
 function _getindices(ex::Expr)
-    if isscalarexpr(ex)
-        return []
+    if isfunctioncall(ex)
+        return _getindices(ex.args[2])
     elseif istensor(ex)
         idxs = ex.args[2:end]
         uidxs = unique(ex.args[2:end])
@@ -386,6 +386,21 @@ istensor(ex::Number) = false
 istensor(ex) = ex.head === :ref && length(ex.args) >= 2
 
 
+# for now only restrict to elementary functions with 1 arg
+# if we allow functions with more than 1 arg we need to change all probably need to
+# update all callsites of isfunctioncall too
+function isfunctioncall(ex::Expr)
+    ex.head === :call || return false
+    length(ex.args) > 1 || return false
+    length(ex.args) == 2 && ex.args[1] in (:tan,:sin,:cos,:atan,:asin,:acos,
+                                           :tanh,:sinh,:cosh,:atanh,:asinh,:acosh,
+                                           :cot,:sec,:acot,:asec,:coth,:sech,
+                                           :log,:log10,:log2,:log1p,
+                                           :exp,:exp10,:exp2,:expm1,
+                                           :sinpi,:cospi)
+end
+isfunctioncall(ex) = false
+
 
 ### non-atomic analyzers
 
@@ -407,6 +422,7 @@ isgeneraltensor(ex::Number) = false
 # anything with open indices is not a scalar expression
 function isscalarexpr(ex::Expr)
     ex.head === :call || return false
+    isfunctioncall(ex) && return isscalarexpr(ex.args[2])
     ex.args[1] in (:+,:-) && return all(a -> isscalarexpr(a), ex.args[2:end])
     ex.args[1] === :* && return isempty(getindices(ex))
     ex.args[1] === :/ && length(ex.args) == 3 && !istensor(ex.args[2]) &&
