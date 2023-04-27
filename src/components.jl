@@ -169,7 +169,7 @@ function parse_heads_idxpairs_symmetries(exprs)
         lhs, rhs = getlhs(args[1]), getrhs(args[1])
 
         # TODO Can we support something like T[i,j] = k?
-        if !TO.istensorexpr(lhs) || !TO.istensorexpr(rhs)
+        if !istensorexpr(lhs) || !istensorexpr(rhs)
             error("@components: @symmtery: expected symmetry relation for a tensor's components, e.g. something like '@symmetry A[i,j] = A[i,j]', found '$ex'")
         end
 
@@ -223,9 +223,9 @@ function parse_heads_idxpairs_equations(eqs)
             error("@components: LHS cannot involve function calls, found '$lhs'!")
         end
 
-        lhs_heads_idxs = if TO.istensorexpr(lhs)
+        lhs_heads_idxs = if istensorexpr(lhs)
             TO.decomposetensor.(TO.gettensors(lhs))
-        elseif TO.isscalarexpr(lhs)
+        elseif isscalarexpr(lhs)
             [ (lhs, [], []) ]
         else
             error("@components: This should not have happened; don't know how to handle: '$lhs'!")
@@ -236,12 +236,12 @@ function parse_heads_idxpairs_equations(eqs)
             rhs = rhs.args[2]
         end
 
-        rhs_heads_idxs = if TO.istensorexpr(rhs)
+        rhs_heads_idxs = if istensorexpr(rhs)
             heads_idxs = TO.decomposetensor.(TO.gettensors(rhs))
             scalars = unique(reduce(vcat, getscalars.(getcoeffs(rhs)), init=Symbol[]))
             append!(heads_idxs, (s,[],[]) for s in scalars)
             heads_idxs
-        elseif TO.isscalarexpr(rhs)
+        elseif isscalarexpr(rhs)
             coeffs = getcoeffs(rhs)
             scalars = unique(reduce(vcat, getscalars.(coeffs)))
             [ (s, [], []) for s in scalars ]
@@ -423,7 +423,7 @@ function generate_code_unroll_equations(eq)
     lhs = MacroTools.postwalk(lhs) do node
         # can't capture scalars here (easily), because postwalk will also visit indices (if
         # there are any) and classify those as scalars ...
-        !TO.istensor(node) && return node
+        !istensor(node) && return node
         heads_idxs = TO.decomposetensor(node)
         head, idxs = heads_idxs[1], heads_idxs[2]
         gend_head = gensym(head)
@@ -443,7 +443,7 @@ function generate_code_unroll_equations(eq)
 
     gend_rhs_heads_idxs = []
     rhs = MacroTools.postwalk(rhs) do node
-        !TO.istensor(node) && return node
+        !istensor(node) && return node
         heads_idxs = TO.decomposetensor(node)
         head, idxs = heads_idxs[1], heads_idxs[2]
         gend_head = gensym(head)
@@ -473,7 +473,7 @@ function generate_code_unroll_equations(eq)
     end
 
     # extract independent tensor components, if any
-    extract_indeps = if !TO.isscalarexpr(lhs)
+    extract_indeps = if !isscalarexpr(lhs)
         ulhs_ghead = Symbol(:u_,lhs_ghead)
         quote
             $ulhs_ghead = unique($lhs_ghead)
@@ -522,7 +522,7 @@ function generate_code_resolve_symmetries(ex_sym)
     # indexed tensor, and some tensors might appear twice (although on ly on RHSs)
     gend_lhs_heads_idxs = []
     gend_lhs = MacroTools.postwalk(lhs) do node
-        !TO.istensor(node) && return node
+        !istensor(node) && return node
         heads_idxs = TO.decomposetensor(node)
         head = heads_idxs[1]
         gend_head = gensym(head)
@@ -534,7 +534,7 @@ function generate_code_resolve_symmetries(ex_sym)
     end
     gend_rhs_heads_idxs = []
     gend_rhs = MacroTools.postwalk(rhs) do node
-        !TO.istensor(node) && return node
+        !istensor(node) && return node
         heads_idxs = TO.decomposetensor(node)
         head = heads_idxs[1]
         gend_head = gensym(head)
