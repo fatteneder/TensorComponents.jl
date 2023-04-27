@@ -52,8 +52,8 @@ function meinsum(expr)
     end
     if rhs isa Expr && rhs.head === :call && rhs.args[1] in (:+,:-)
         rhs_idxs_list = getindices.(rhs.args[2:end])
-        if any(idxs -> idxs != rhs_idxs, rhs_idxs_list)
-            throw(ArgumentError("@meinsum: inconsistent open indices on rhs"))
+        if any(idxs -> sort!(idxs) != rhs_idxs, rhs_idxs_list)
+            throw(ArgumentError("@meinsum: inconsistent open indices on rhs: $rhs"))
         end
     end
 
