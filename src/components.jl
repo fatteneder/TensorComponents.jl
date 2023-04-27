@@ -45,7 +45,7 @@ function components(expr)
 
     # define components:
     # 1. setup views of tensors
-    # 2. forward contraction to TensorOperations.@tensor macro
+    # 2. forward contraction to @meinsum macro
     # 3. gather output
     code_unroll_eqs = [ generate_code_unroll_equations(eq) for eq in ex_eqs ]
 
@@ -381,7 +381,7 @@ function group_indices_by_slot(heads, idxpairs)
 end
 
 
-# we carry out the contraction using TO.@tensor
+# we carry out the contraction using @meinsum
 # we do so by interpolating/capturing the views of the rhs tensors into a let block
 # for the lhs tensor we capture a deepcopy of its view and then return it
 #
@@ -391,14 +391,13 @@ end
 #   v_A = view(...)
 #   ...
 #   ret_A = let A = deepcopy(v_A), B = v_B, C = v_C
-#       @tensor A[i,j] = B[i,j,k] * C[k]
-#       A
+#       A = @meinsum A[i,j] = B[i,j,k] * C[k]
 #   end
 #
 # using a let block here has sevaral advantages:
-# - we can forward the equation directly to @tensor, so we get the full stack trace
+# - we can forward the equation directly to @meinsum, so we get the full stack trace
 # from TensorOperations in case there is a problem with index contractions
-# - we don't have to replace tensor heads with their view'd symbols; @tensor will
+# - we don't have to replace tensor heads with their view'd symbols; @meinsum will
 # see the equation that was actually entered
 # - in fact, one can not even (easily) use MacroTools.pre/postwalk to replace the
 # tensor heads alone and ignore indices, which is needed if there are name clashes
@@ -460,8 +459,7 @@ function generate_code_unroll_equations(eq)
     ret_lhs = Symbol(:ret_, lhs_ghead)
     let_tensor_expr = quote
         $ret_lhs = let $lhs_ghead = deepcopy($lhs_ghead)
-            @tensor $lhs = $rhs
-            $lhs_ghead
+            TensorComponents.@meinsum $lhs = $rhs
         end
     end
 
@@ -496,11 +494,10 @@ end
 # becomes
 #   var"#A##0123" = view(A,i,j)
 #   var"#A##0567" = view(A,j,i)
-#   result = let
-#       @tensor result[i,j] = var"#A##0123"[i,j] - var"#A##0123"
-#       result
+#   eqs = let
+#       @meinsum eqs[i,j] = var"#A##0123"[i,j] - var"#A##0123"
 #   end
-#   A = TensorComponents.resolve_dependents(A, result)
+#   A = TensorComponents.resolve_dependents(A, eqs)
 function generate_code_resolve_symmetries(ex_sym)
 
     MacroTools.@capture(ex_sym, @symmetry sym_)
@@ -545,17 +542,29 @@ function generate_code_resolve_symmetries(ex_sym)
     vrhs_tensors = [ :($ghead = view($head, $(idxs...)))
                     for (head,ghead,idxs,_) in gend_rhs_heads_idxs if length(idxs) > 0 ]
 
-    result_idxs = first(gend_lhs_heads_idxs)[3]
-    let_tensor_expr = :(let; @tensor result[$(result_idxs...)] := $gend_lhs - $gend_rhs; result end)
+    eqvar = gensym(:eq)
+    eqs_idxs = first(gend_lhs_heads_idxs)[3]
+    eqs_init = if isempty(eqs_idxs)
+        0
+    else
+        slotdims = [ :(TensorComponents.slotdim($idxs)) for idxs in eqs_idxs ]
+        :(TensorComponents.SymbolicTensor(:eqs, $(slotdims...)))
+    end
+    # let_tensor_expr = :(let; TensorComponents.@meinsum eqs[$(eqs_idxs...)] = $gend_lhs - $gend_rhs; end)
+    let_tensor_expr = quote
+        let
+            eqs = $eqs_init
+            TensorComponents.@meinsum eqs[$(eqs_idxs...)] = $gend_lhs - $gend_rhs
+        end
+    end
 
     # # TODO Add symmetry relation as comment with a linenode, because we had
-    # # to obfuscate it; wait, obfuscation already occurs because of the @tensor macro,
+    # # to obfuscate it; wait, obfuscation already occurs because of the @meinsum macro,
     # # so its needed anyways
     # # comment = Expr(:line, string(ex_sym))
     # comment1 = LineNumberNode(0, Symbol(repeat('=',100)*"\n sers oida"))
     # comment2 = LineNumberNode(0, Symbol(ex_sym))
     # comment3 = LineNumberNode(0, Symbol(repeat('=',100)))
-    eqvar = gensym(:eq)
     code = quote
         $head = let
             $(vlhs_tensors...)
