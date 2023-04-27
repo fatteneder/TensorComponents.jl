@@ -219,12 +219,21 @@ function parse_heads_idxpairs_equations(eqs)
 
         lhs, rhs = TO.getlhs(eq), TO.getrhs(eq)
 
+        if isfunctioncall(lhs)
+            error("@components: LHS cannot involve function calls, found '$lhs'!")
+        end
+
         lhs_heads_idxs = if TO.istensorexpr(lhs)
             TO.decomposetensor.(TO.gettensors(lhs))
         elseif TO.isscalarexpr(lhs)
             [ (lhs, [], []) ]
         else
             error("@components: This should not have happened; don't know how to handle: '$lhs'!")
+        end
+
+        # unwrap any function calls
+        if isfunctioncall(rhs)
+            rhs = rhs.args[2]
         end
 
         rhs_heads_idxs = if TO.istensorexpr(rhs)
