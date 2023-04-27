@@ -451,12 +451,13 @@ iscontraction(ex) = false
 # any expression which involves (general)tensors combined with any of the +,-,*,/ operators
 function istensorexpr(ex::Expr)
     isgeneraltensor(ex) && return true
-    ex.head === :call && length(ex.args) >= 3 && ex.args[1] === :* &&
+    ex.head === :call || return false
+    ex.args[1] === :* && length(ex.args) >= 3 &&
         all(a -> istensorexpr(a) || isscalarexpr(a), ex.args[2:end]) &&
         count(a -> istensorexpr(a), ex.args[2:end]) >= 1 && return true
-    ex.head === :call && length(ex.args) == 3 && ex.args[1] === :/ &&
+    ex.args[1] === :/ && length(ex.args) == 3 &&
         isscalarexpr(ex.args[3]) && return istensorexpr(ex.args[2])
-    ex.head === :call && length(ex.args) >= 3 && ex.args[1] in (:+,:-) &&
+    ex.args[1] in (:+,:-) && length(ex.args) >= 3 &&
         all(a -> istensorexpr(a), ex.args[2:end]) && return true
     return false
 end

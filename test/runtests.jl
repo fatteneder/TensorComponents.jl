@@ -424,6 +424,7 @@ end
     @test TC.istensorexpr(:((a + b)^c * A[i,j] * B[j] - C[i,j] * D[j] / x * y^2)) == true
     @test TC.istensorexpr(:(A[i,j] * (b * B[k] - c * C[k]) / d)) == true
     @test TC.istensorexpr(:((D[k] * D[k] + b) * C[i,j])) == true
+    @test TC.istensorexpr(:(T[a,b] * (dg[k,a,b] - Γ[d,a,b] * g[d,k]))) == true
 
     @test TC.iscontraction(:(a)) == false
     @test TC.iscontraction(:(A[i,j])) == false
