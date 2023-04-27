@@ -258,10 +258,6 @@ function _getindices(ex::Expr)
         uidxs = unique(ex.args[2:end])
         is_notdup = findall(i -> count(j -> j == i, idxs) == 1, idxs)
         return isempty(is_notdup) ? Any[] : idxs[is_notdup]
-    elseif isgeneraltensor(ex)
-        allidxs = reduce(vcat, _getindices(a) for a in ex.args[2:end]; init=[])
-        idxs = filter(i -> count(j -> j == i, allidxs) == 1, allidxs)
-        return idxs
     elseif istensorexpr(ex)
         idxs = if ex.args[1] === :*
             allidxs = reduce(vcat, _getindices(a) for a in ex.args[2:end]; init=[])
@@ -278,10 +274,9 @@ function _getindices(ex::Expr)
         else
             throw(ErrorException("this should not have happened!"))
         end
-        # display(idxs)
         return idxs
-    else
-        throw(ArgumentError("not a tensor expression: $ex"))
+    else # its a scalar expression
+        return []
     end
 end
 _getindices(ex::Symbol) = []
@@ -357,17 +352,6 @@ function decomposecontraction(ex)
 end
 
 
-# Remaining couplings to TensorOperations
-# istensor
-# isgeneraltensor
-# decomposetensor
-# istensorexpr : a*A[i] + b*B[j] is true, a*A[i] + b is false, a * A[i] * B[i] is true
-# isscalarexpr : anything without brackets is a scalar expression
-# gettensorobjects
-# getallindices
-# getindices
-# gettensors
-# @tensor
 
 
 
