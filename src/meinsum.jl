@@ -48,7 +48,7 @@ function meinsum(expr)
     rhs_idxs = getindices(rhs)
 
     if lhs_idxs != rhs_idxs
-        throw(ArgumentError("@meinsum: unbalanced open indices between lhs and rhs"))
+        throw(ArgumentError("@meinsum: unbalanced open indices between lhs and rhs: $expr"))
     end
     if rhs isa Expr && rhs.head === :call && rhs.args[1] in (:+,:-)
         rhs_idxs_list = getindices.(rhs.args[2:end])
