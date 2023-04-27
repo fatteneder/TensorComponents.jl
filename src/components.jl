@@ -419,8 +419,7 @@ function generate_code_unroll_equations(eq)
         heads_idxs = TO.decomposetensor(node)
         head, idxs = heads_idxs[1], heads_idxs[2]
         gend_head = gensym(head)
-        fixed_idxs = filter(i -> i isa Symbol, idxs)
-        push!(gend_lhs_heads_idxs, (head, gend_head, fixed_idxs, heads_idxs[2:end]...))
+        push!(gend_lhs_heads_idxs, (head, gend_head, idxs, heads_idxs[2:end]...))
         newnode = MacroTools.postwalk(node) do h
             h === head ? gend_head : h
         end
