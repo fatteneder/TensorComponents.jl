@@ -364,15 +364,16 @@ end
 
     @test TC.isscalarexpr(:(a)) == true
     @test TC.isscalarexpr(:(a / b)) == true
-    @test TC.isscalarexpr(:(a \ b)) == true
-    @test TC.isscalarexpr(:(a \ b + 1)) == true
-    @test TC.isscalarexpr(:(a \ 2 + c)) == true
-    @test TC.isscalarexpr(:((a \ 2)^c)) == true
+    @test TC.isscalarexpr(:(a \ b)) == false
+    @test TC.isscalarexpr(:(a \ b + 1)) == false
+    @test TC.isscalarexpr(:(a \ 2 + c)) == false
+    @test TC.isscalarexpr(:((a \ 2)^c)) == false
     @test TC.isscalarexpr(:(A[i,j])) == false
     @test TC.isscalarexpr(:(a * A[i,j])) == false
     @test TC.isscalarexpr(:(a \ A[i,j])) == false
     @test TC.isscalarexpr(:(a / A[i,j])) == false
-    @test_throws ArgumentError TC.isscalarexpr(:(a / A[i,j] + B[i,j])) # because a / A[i,j] is not a tensor
+    @test TC.isscalarexpr(:(a / A[i,j] + B[i,j])) == false
+    @test TC.isscalarexpr(:(A[i] * A[i])) == true
     @test TC.isscalarexpr(:(a + A[i] * A[i])) == true
 
     @test TC.istensor(:(a)) == false
