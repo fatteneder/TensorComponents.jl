@@ -308,7 +308,7 @@ end
 
 
 gettensors(ex) = []
-function gettensors(expr)
+function gettensors(expr::Expr)
     tensors = []
     MacroTools.postwalk(expr) do ex
         istensor(ex) && push!(tensors, ex)
@@ -405,7 +405,7 @@ isfunctioncall(ex) = false
 ### non-atomic analyzers
 
 # general tensor =^= a single array with at most scalar coefficients
-function isgeneraltensor(ex)
+function isgeneraltensor(ex::Expr)
     istensor(ex) && return true
     ex.head === :call || return false
     length(ex.args) >= 3 && ex.args[1] == :* &&
@@ -415,8 +415,7 @@ function isgeneraltensor(ex)
         !istensor(ex.args[3]) && return true
     return false
 end
-isgeneraltensor(ex::Symbol) = false
-isgeneraltensor(ex::Number) = false
+isgeneraltensor(ex) = false
 
 
 # anything with open indices is not a scalar expression
@@ -436,7 +435,7 @@ isscalarexpr(ex::Symbol) = true
 isscalarexpr(ex::Number) = true
 
 
-function iscontraction(ex)
+function iscontraction(ex::Expr)
     istensor(ex) && !isempty(getcontractedindices(ex)) && return true
     isgeneraltensor(ex) && return any(a -> iscontraction(a), ex.args[2:end])
     !istensorexpr(ex) && return false
@@ -450,7 +449,7 @@ iscontraction(ex) = false
 
 
 # any expression which involves (general)tensors combined with any of the +,-,*,/ operators
-function istensorexpr(ex)
+function istensorexpr(ex::Expr)
     isgeneraltensor(ex) && return true
     ex.head === :call && length(ex.args) >= 3 && ex.args[1] === :* &&
         all(a -> istensorexpr(a) || isscalarexpr(a), ex.args[2:end]) &&
@@ -465,7 +464,7 @@ istensorexpr(ex) = false
 
 
 # Any expression brackets ([ ] =^= ex.head === :ref) is considered to have indices, even :(A[])
-function hasindices(ex)
+function hasindices(ex::Expr)
     isfunctioncall(ex) && return hasindices(ex.args[2])
     ex.head === :ref && return true
     ex.head === :call && length(ex.args) >= 3 && any(a -> hasindices(a), ex.args[2:end]) && return true
