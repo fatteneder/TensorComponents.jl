@@ -392,37 +392,32 @@ istensor(ex) = ex.head === :ref && length(ex.args) >= 2
 # general tensor =^= a single array with at most scalar coefficients
 function isgeneraltensor(ex)
     istensor(ex) && return true
-    ex.head === :call && length(ex.args) >= 3 && ex.args[1] == :* &&
+    ex.head === :call || return false
+    length(ex.args) >= 3 && ex.args[1] == :* &&
         count(a -> istensor(a), ex.args[2:end]) == 1 &&
         count(a -> isscalarexpr(a), ex.args[2:end]) == length(ex.args)-2 && return true
-    ex.head === :call && length(ex.args) == 3 && ex.args[1] == :/ && istensor(ex.args[2]) && !istensor(ex.args[3]) && return true
+    length(ex.args) == 3 && ex.args[1] == :/ && istensor(ex.args[2]) &&
+        !istensor(ex.args[3]) && return true
     return false
 end
 isgeneraltensor(ex::Symbol) = false
 isgeneraltensor(ex::Number) = false
 
 
-# any expression which involves (general)tensors combined with any of the +,-,*,/ operators
-function istensorexpr(ex)
-    isgeneraltensor(ex) && return true
-    ex.head === :call && length(ex.args) >= 3 && ex.args[1] === :* &&
-        all(a -> istensorexpr(a) || isscalarexpr(a), ex.args[2:end]) &&
-        count(a -> istensorexpr(a), ex.args[2:end]) >= 1 && return true
-    ex.head === :call && length(ex.args) == 3 && ex.args[1] === :/ &&
-        isscalarexpr(ex.args[3]) && return istensorexpr(ex.args[2])
-    ex.head === :call && length(ex.args) >= 3 && ex.args[1] in (:+,:-) &&
-        all(a -> istensorexpr(a), ex.args[2:end]) && return true
+# anything with open indices is not a scalar expression
+function isscalarexpr(ex::Expr)
+    ex.head === :call || return false
+    ex.args[1] in (:+,:-) && return all(a -> isscalarexpr(a), ex.args[2:end])
+    ex.args[1] === :* && return isempty(getindices(ex))
+    ex.args[1] === :/ && length(ex.args) == 3 && !istensor(ex.args[2]) &&
+        return isempty(getindices(ex.args[3]))
+    ex.args[1] === :^ && length(ex.args) == 3 && isscalarexpr(ex.args[2]) &&
+        isscalarexpr(ex.args[3]) && return true
     return false
 end
 isscalarexpr(ex) = false
 isscalarexpr(ex::Symbol) = true
 isscalarexpr(ex::Number) = true
-function isscalarexpr(ex)
-    !hasindices(ex) && return true
-    ex.head === :call && length(ex.args) >= 3 && ex.args[1] in (:+,:-) &&
-        return all(a -> isscalarexpr(a) || isempty(getindices(a)), ex.args[2:end])
-    return false
-end
 
 
 function iscontraction(ex)
