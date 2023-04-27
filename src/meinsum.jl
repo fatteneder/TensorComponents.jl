@@ -291,11 +291,6 @@ end
 
 
 # Taken from TensorOperations.jl
-isassignment(ex) = false
-isassignment(ex::Expr) = (ex.head == :(=) || ex.head == :(+=) || ex.head == :(-=))
-
-
-# Taken from TensorOperations.jl
 function getlhs(ex)
     if isassignment(ex) && length(ex.args) == 2
         return ex.args[1]
@@ -352,13 +347,47 @@ function decomposecontraction(ex)
 end
 
 
+# variable =^= any Symbol that is used in an expression with head===:call
+function getscalars(ex)
+    vars = Symbol[]
+    _getscalars!(vars, ex)
+    return vars
+end
 
+
+_getscalars!(vars, s::Symbol) = push!(vars, s)
+_getscalars!(vars, s::Number) = nothing
+function _getscalars!(vars, ex::Expr)
+    if ex.head === :call
+        foreach(ex.args[2:end]) do a
+            _getscalars!(vars, a)
+        end
+    else
+        error("Failed to extract variables from '$ex'")
+    end
+    return
+end
+
+
+
+
+
+
+### atomic analyzers
+
+
+isassignment(ex) = false
+isassignment(ex::Expr) = (ex.head == :(=) || ex.head == :(+=) || ex.head == :(-=))
 
 
 # tensor =^= a single array
 istensor(ex::Symbol) = false
 istensor(ex::Number) = false
 istensor(ex) = ex.head === :ref && length(ex.args) >= 2
+
+
+
+### non-atomic analyzers
 
 # general tensor =^= a single array with at most scalar coefficients
 function isgeneraltensor(ex)
@@ -385,13 +414,7 @@ function istensorexpr(ex)
         all(a -> istensorexpr(a), ex.args[2:end]) && return true
     return false
 end
-istensorexpr(ex::Symbol) = false
-istensorexpr(ex::Number) = false
-
-
-# anything with open indices is not a scalar expression
-# TODO Fix isscalarexpr(:(D[k] * D[k] + b)) == true
-# isscalarexpr(ex) = !hasindices(ex)
+isscalarexpr(ex) = false
 isscalarexpr(ex::Symbol) = true
 isscalarexpr(ex::Number) = true
 function isscalarexpr(ex)
@@ -402,8 +425,6 @@ function isscalarexpr(ex)
 end
 
 
-iscontraction(ex::Symbol) = false
-iscontraction(ex::Number) = false
 function iscontraction(ex)
     istensor(ex) && !isempty(getcontractedindices(ex)) && return true
     isgeneraltensor(ex) && return any(a -> iscontraction(a), ex.args[2:end])
@@ -414,35 +435,29 @@ function iscontraction(ex)
     isempty(cidxs) && return false
     return true
 end
+iscontraction(ex) = false
+
+
+# any expression which involves (general)tensors combined with any of the +,-,*,/ operators
+function istensorexpr(ex)
+    isgeneraltensor(ex) && return true
+    ex.head === :call && length(ex.args) >= 3 && ex.args[1] === :* &&
+        all(a -> istensorexpr(a) || isscalarexpr(a), ex.args[2:end]) &&
+        count(a -> istensorexpr(a), ex.args[2:end]) >= 1 && return true
+    ex.head === :call && length(ex.args) == 3 && ex.args[1] === :/ &&
+        isscalarexpr(ex.args[3]) && return istensorexpr(ex.args[2])
+    ex.head === :call && length(ex.args) >= 3 && ex.args[1] in (:+,:-) &&
+        all(a -> istensorexpr(a), ex.args[2:end]) && return true
+    return false
+end
+istensorexpr(ex) = false
 
 
 # Any expression brackets ([ ] =^= ex.head === :ref) is considered to have indices, even :(A[])
 function hasindices(ex)
+    isfunctioncall(ex) && return hasindices(ex.args[2])
     ex.head === :ref && return true
     ex.head === :call && length(ex.args) >= 3 && any(a -> hasindices(a), ex.args[2:end]) && return true
     return false
 end
-hasindices(ex::Symbol) = false
-hasindices(ex::Number) = false
-
-
-# variable =^= any Symbol that is used in an expression with head===:call
-function getscalars(ex)
-    vars = Symbol[]
-    _getscalars!(vars, ex)
-    return vars
-end
-
-
-_getscalars!(vars, s::Symbol) = push!(vars, s)
-_getscalars!(vars, s::Number) = nothing
-function _getscalars!(vars, ex::Expr)
-    if ex.head === :call
-        foreach(ex.args[2:end]) do a
-            _getscalars!(vars, a)
-        end
-    else
-        error("Failed to extract variables from '$ex'")
-    end
-    return
-end
+hasindices(ex) = false
