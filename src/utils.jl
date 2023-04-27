@@ -160,7 +160,7 @@ function count_operations(lhsrhs::AbstractVector)
     allstats = Dict{Symbol,Int}()
     for (_,rhs) in lhsrhs
         stats = count_operations(rhs)
-        mergestats!(allstats,stats)
+        mergecounts!(allstats,stats)
     end
     return allstats
 end
