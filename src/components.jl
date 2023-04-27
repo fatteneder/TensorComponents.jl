@@ -180,8 +180,8 @@ function parse_heads_idxpairs_symmetries(exprs)
         end
         head = ts[1]
 
-        allidxs_lhs, allidxs_rhs = TO.getallindices(lhs), TO.getallindices(rhs)
-        idxs_lhs, idxs_rhs       = TO.getindices(lhs), TO.getindices(rhs)
+        allidxs_lhs, allidxs_rhs = getallindices(lhs), getallindices(rhs)
+        idxs_lhs, idxs_rhs       = getindices(lhs), getindices(rhs)
 
         if length(allidxs_lhs) != length(allidxs_rhs) != length(idxs_lhs) != length(idxs_rhs)
             error("@components: @symmetry: inconsistent index pattern found in '$ex'")
