@@ -233,24 +233,19 @@ end
 # getcontractedindices(ex) = getallindices(ex)[2]
 
 
-getallindices(ex) = unique(_getallindices(ex))
-function _getallindices(ex::Expr)
-    if isscalarexpr(ex)
-        hasindices(ex) && return reduce(vcat, [ _getallindices(a) for a in ex.args[2:end] ])
-        return Any[]
-    elseif istensor(ex)
-        return ex.args[2:end]
-    elseif isgeneraltensor(ex)
-        return reduce(vcat, [ _getallindices(a) for a in ex.args[2:end] ])
-    elseif istensorexpr(ex)
-        return reduce(vcat, [ _getallindices(a) for a in ex.args[2:end] if istensorexpr(a) ])
-    else
-        throw(ArgumentError("not a tensor expression: $ex"))
-    end
-end
-_getallindices(ex::Symbol) = []
-_getallindices(ex::Int) = []
+### getters
 
+
+getallindices(expr) = Any[]
+function getallindices(expr::Expr)
+    idxs = Any[]
+    MacroTools.postwalk(expr) do ex
+        istensor(ex) && append!(idxs, ex.args[2:end])
+        ex
+    end
+    unique!(idxs)
+    return idxs
+end
 
 
 # =^= getopenindices
@@ -268,13 +263,10 @@ function _getindices(ex::Expr)
         idxs = filter(i -> count(j -> j == i, allidxs) == 1, allidxs)
         return idxs
     elseif istensorexpr(ex)
-        # display(ex)
         idxs = if ex.args[1] === :*
-            # println("*")
             allidxs = reduce(vcat, _getindices(a) for a in ex.args[2:end]; init=[])
             filter(i -> count(j -> j == i, allidxs) == 1, allidxs)
         elseif ex.args[1] in (:+,:-)
-            # println("+,-")
             allidxs = [ _getindices(a) for a in ex.args[2:end] ]
             allidxs = map(allidxs) do idxs
                 filter(i -> count(j -> j == i, idxs) == 1, idxs)
@@ -325,36 +317,16 @@ function getrhs(ex)
 end
 
 
-function gettensors(ex)
-    ts = []
-    _gettensors!(ts, ex)
-    return ts
-end
-
-
-function _gettensors!(vars, ex)
-    if isscalarexpr(ex)
-        nothing
-    elseif istensor(ex)
-        push!(vars, ex)
-    elseif isgeneraltensor(ex)
-        foreach(ex.args) do a
-            istensor(a) && push!(vars, a)
-        end
-    elseif ex.head === :call && length(ex.args) >= 3 && ex.args[1] in (:*,:+,:-)
-        foreach(ex.args[2:end]) do a
-            _gettensors!(vars, a)
-        end
-    elseif ex.head === :call && length(ex.args) == 3 && ex.args[1] === :/
-        _gettensors!(vars, ex.args[2])
-    else
-        error("Failed to extract variables from '$ex'")
+gettensors(ex) = []
+function gettensors(expr)
+    tensors = []
+    MacroTools.postwalk(expr) do ex
+        istensor(ex) && push!(tensors, ex)
+        ex
     end
-    return
+    unique!(tensors)
+    return tensors
 end
-_gettensors!(vars, ex::Symbol) = nothing
-_gettensors!(vars, ex::Number) = nothing
-
 
 function decomposetensor(ex)
     if istensor(ex)
