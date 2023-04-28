@@ -2,11 +2,9 @@ using Test
 
 using LinearAlgebra
 using TensorComponents
-using TensorOperations
 using SymEngine
 
 const TC = TensorComponents
-const TO = TensorOperations
 
 
 @testset "@components equations" begin

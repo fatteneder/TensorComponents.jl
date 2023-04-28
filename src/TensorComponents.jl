@@ -5,10 +5,7 @@ using LinearAlgebra
 using MacroTools
 using RowEchelon
 using SymEngine
-using TensorOperations
-import TensorOperations: Strided
 
-const TO = TensorOperations
 
 
 export @components
