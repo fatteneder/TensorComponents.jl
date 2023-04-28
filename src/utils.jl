@@ -3,7 +3,8 @@
 function topological_sort(nodes::Vector{T}, childs::Vector{Vector{T}}) where T
 
     # find set with no incoming edges/parents
-    allchilds = unique!(reduce(vcat, childs))
+    allchilds = unique!(reduce(vcat, childs, init=T[]))
+
     seq_noparents = Int[]
     for (i,n) in enumerate(nodes)
         if !(n in allchilds)
@@ -35,9 +36,11 @@ function topological_sort(nodes::Vector{T}, childs::Vector{Vector{T}}) where T
         end
     end
 
-    n_rest_childs = mapreduce(sum, +, tmpchilds)
-    if n_rest_childs != 0
-        error("Failed to sort, because graph has at least on cycle")
+    if !isempty(tmpchilds)
+        n_rest_childs = mapreduce(sum, +, tmpchilds)
+        if n_rest_childs != 0
+            error("Failed to sort, because graph has at least on cycle")
+        end
     end
 
     return seq

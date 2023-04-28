@@ -231,8 +231,8 @@ function parse_heads_idxpairs_equations(eqs)
             error("@components: This should not have happened; don't know how to handle: '$lhs'!")
         end
 
-        # unwrap any function calls
-        if isfunctioncall(rhs)
+        # strip any function calls
+        while isfunctioncall(rhs)
             rhs = rhs.args[2]
         end
 

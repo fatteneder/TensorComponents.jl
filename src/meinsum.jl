@@ -60,6 +60,9 @@ function meinsum(expr)
     # 2. verify
     # - make sure there are no contracted indices on the LHS
     # - make sure there are the same open indices on both sides
+    if !isempty(getcontractedindices(lhs))
+        throw(ArgumentError("@meinsum: lhs cannot have contracted indices: $lhs"))
+    end
     @assert isempty(getcontractedindices(lhs))
     @assert ispermutation(rhs_idxs, permutation_catalog(lhs_idxs))
     rhs_conidxs = getcontractedindices(rhs)
@@ -404,7 +407,7 @@ function isfunctioncall(ex::Expr)
                                            :cot,:sec,:acot,:asec,:coth,:sech,
                                            :log,:log10,:log2,:log1p,
                                            :exp,:exp10,:exp2,:expm1,
-                                           :sinpi,:cospi)
+                                           :sinpi,:cospi, :abs)
 end
 isfunctioncall(ex) = false
 

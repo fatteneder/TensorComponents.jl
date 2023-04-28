@@ -72,19 +72,21 @@ const TO = TensorOperations
         @index i = 4
         A[i] = B[1,i]
     end); true)
-
-    ### Broken tests
-    # TODO some problem with no elements in reduce
-    @test_skip (eval(@components begin
+    @test (eval(@components begin
         @index i,j,k = 4
         @symmetry A[i,j,k] = A[j,i,k]
         @symmetry A[i,j,k] = A[i,k,j]
         @symmetry A[i,j,k] = A[k,j,i]
     end); true)
-    # TODO Make these work
-    @test_skip (eval(@components begin
+    # can also use 1-argument math functions
+    @test (eval(@components begin
         @index i = 4
-        A[i] = log(α[i])
+        A[i] = cos(α[i])
+    end); true)
+    # also with nested functions
+    @test (eval(@components begin
+        @index i = 4
+        A[i] = log(abs(α[i]))
     end); true)
 
     ### invalid use
@@ -113,12 +115,8 @@ const TO = TensorOperations
         A[i,j] = B[i,j] * C[k,k]
         D[a]   = B[i,j]
     end)
-
-    ### Broken tests
-
     # inconsistent rank between symmetries and equations
-    # @test_throws ErrorException TC.components(quote
-    @test_skip TC.components(quote
+    @test_throws ErrorException TC.components(quote
         @index i, j, k = 4
         @symmetry A[i,j,k] = A[j,i,k]
         A[i,j] = B[i,j,k] * C[k]
@@ -160,9 +158,7 @@ const TO = TensorOperations
         @index i, j, k = 3
         A[i,j] = B[i,j] + C[k]
     end))
-    # TODO Fix this: can't assign to lhs with contractions -- needs better error message
-    # @test_throws ErrorException eval(TC.components(quote
-    @test_broken eval(TC.components(quote
+    @test_throws LoadError eval(TC.components(quote
         @index i = 3
         A[i,i] = a
     end))
@@ -442,7 +438,7 @@ end
     # TODO This should fail with comprehensive msg
     @test_skip TC.getallindices(:(C[k]^3)) == [:k]
     # should be written as (really, looks unnecessariyl complicated...)
-    # @test_skip TC.getallindices(:(C[i]*C[j]*C[k]*δ[i,j]*δ[j,k]*δ[k,i])) == [:k]
+    @test_skip TC.getallindices(:(C[i]*C[j]*C[k]*δ[i,j]*δ[j,k]*δ[k,i])) == [:i,:j,:k]
 
     @test TC.getindices(:(A[i,j])) == [:i,:j]
     @test TC.getindices(:(A[i,j] * B[k,l])) == [:i,:j,:k,:l]
