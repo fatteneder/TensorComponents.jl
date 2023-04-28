@@ -238,12 +238,11 @@ function parse_heads_idxpairs_equations(eqs)
 
         rhs_heads_idxs = if istensorexpr(rhs)
             heads_idxs = decomposetensor.(gettensors(rhs))
-            scalars = unique(reduce(vcat, getscalars.(getcoeffs(rhs)), init=Symbol[]))
+            scalars = getscalars(rhs)
             append!(heads_idxs, (s,[]) for s in scalars)
             heads_idxs
         elseif isscalarexpr(rhs)
-            coeffs = getcoeffs(rhs)
-            scalars = unique(reduce(vcat, getscalars.(coeffs)))
+            scalars = getscalars(rhs)
             [ (s, []) for s in scalars ]
         else
             error("@components: This should not have happened; don't know how to handle: '$rhs'!")

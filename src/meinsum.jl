@@ -352,18 +352,19 @@ function decomposecontraction(ex)
 end
 
 
-# variable =^= any Symbol that is used in an expression with head===:call
+# variable =^= any Symbol that does not have indices
 function getscalars(ex)
-    vars = Symbol[]
+    vars = Any[]
     _getscalars!(vars, ex)
+    unique!(vars)
     return vars
 end
-
-
 _getscalars!(vars, s::Symbol) = push!(vars, s)
 _getscalars!(vars, s::Number) = nothing
 function _getscalars!(vars, ex::Expr)
-    if ex.head === :call
+    if istensor(ex)
+        return
+    elseif ex.head === :call
         foreach(ex.args[2:end]) do a
             _getscalars!(vars, a)
         end
@@ -372,6 +373,7 @@ function _getscalars!(vars, ex::Expr)
     end
     return
 end
+
 
 
 

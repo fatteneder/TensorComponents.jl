@@ -257,25 +257,6 @@ end
         all(c -> c in view(sorted_nodes, idx:N), sorted_childs[idx])
     end
 
-    # getcoeffs
-    @test TC.getcoeffs(:(a)) == Any[:a]
-    @test TC.getcoeffs(:(a * A[i,j])) == Any[:(a * true)]
-    @test TC.getcoeffs(:(2 * a * A[i,j])) == Any[:(2 * a * true)]
-    @test TC.getcoeffs(:(a * 2 * A[i,j])) == Any[:(a * 2 * true)]
-    @test TC.getcoeffs(:(x * A[i,j] + B[j,i] * y)) == Any[:(x * true), :(true * y)]
-    @test TC.getcoeffs(:((x^2 + y)^2 * A[i,j] + B[j,i] * y)) == Any[:((x^2 + y)^2 * true), :(true * y)]
-    @test TC.getcoeffs(:(cos(α) * A[i,j] + B[j,i] * sin(α))) == Any[:(cos(α) * true), :(true * sin(α))]
-
-    # getscalars
-    @test TC.getscalars.(TC.getcoeffs(:(a))) == [ [:a] ]
-    @test TC.getscalars.(TC.getcoeffs(:(a * A[i,j]))) == [ [:a] ]
-    @test TC.getscalars.(TC.getcoeffs(:(2 * a * A[i,j]))) == [ [:a] ]
-    @test TC.getscalars.(TC.getcoeffs(:(a * 2 * A[i,j]))) == [ [:a] ]
-    @test TC.getscalars.(TC.getcoeffs(:(x * A[i,j] + B[j,i] * y))) == [ [:x], [:y] ]
-    @test TC.getscalars.(TC.getcoeffs(:((x^2 + y)^2 * A[i,j] + B[j,i] * y))) == [ [:x, :y], [:y] ]
-    @test TC.getscalars.(TC.getcoeffs(:(cos(α) * A[i,j] + B[j,i] * sin(α)))) == [ [:α], [:α] ]
-
-
     @test TC.isevenperm([1,2,3]) == true
     @test TC.isevenperm([2,1,3]) == false
     @test TC.isevenperm([2,3,1]) == true
@@ -524,6 +505,14 @@ end
     @test TC.gettensorheads(:((a + b)^c * A[i,j] * B[x] - C[y,z] * D[j] / x * y^2)) == [ :A, :B, :C, :D ]
     @test TC.gettensorheads(:(A[i,j] * (b * B[k] - c * C[k]) / d)) == [ :A, :B, :C ]
 
+    @test TC.getscalars(:(a)) == [ :a ]
+    @test TC.getscalars(:(a * A[i,j])) == [ :a ]
+    @test TC.getscalars(:(2 * a * A[i,j])) == [ :a ]
+    @test TC.getscalars(:(a * 2 * A[i,j])) == [ :a ]
+    @test TC.getscalars(:(x * A[i,j] + B[j,i] * y)) == [ :x, :y ]
+    @test TC.getscalars(:((x^2 + y)^2 * A[i,j] + B[j,i] * y)) == [ :x, :y ]
+    @test TC.getscalars(:(cos(α) * A[i,j] + B[j,i] * sin(α))) == [ :α ]
+    @test TC.getscalars(:((a * A[i,j] + B[i,j]) * C[j,k] * d + e * F[i])) == [ :a, :d, :e ]
 
     @test TC.decomposecontraction(:(A[i,i])) == ([:(A[i,i])], [])
     @test TC.decomposecontraction(:(A[i,j] * B[k,l])) == ([], [])

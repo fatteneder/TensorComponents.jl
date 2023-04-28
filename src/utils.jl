@@ -44,32 +44,6 @@ function topological_sort(nodes::Vector{T}, childs::Vector{Vector{T}}) where T
 end
 
 
-# analog to TO.gettensors, but to extract all the scalar factors
-# that multiply a (general)tensor in an expression
-function getcoeffs(expr)
-    scalars = Any[]
-    _getcoeffs!(expr, scalars)
-    return scalars
-end
-
-
-function _getcoeffs!(expr, scalars)
-    if TO.istensor(expr)
-        # nothing to do
-    elseif TO.isscalarexpr(expr)
-        push!(scalars, expr)
-    elseif TO.isgeneraltensor(expr)
-        _, _, _, s, _ = TO.decomposegeneraltensor(expr)
-        push!(scalars, s)
-    elseif expr.head === :call && expr.args[1] in (:+,:-,:*,:/)
-        foreach(ex -> _getcoeffs!(ex, scalars), expr.args[2:end])
-    else
-        error("Found unknown expression: '$expr'")
-    end
-    return
-end
-
-
 # From https://stackoverflow.com/a/16464566
 function isevenperm(perm)
     isperm(perm) || error()
