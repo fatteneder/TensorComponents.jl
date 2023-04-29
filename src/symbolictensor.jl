@@ -72,9 +72,7 @@ for f in (:+, :-)
         nt.comp = $f(t.coeff * t.comp, s)
         return nt
     end
-    # @eval Base.$f(t::SymbolicTensor, s::AbstractArray) = $f(s,t)
     @eval function Base.$f(t::SymbolicTensor, s::SymbolicTensor)
-        # promote_rule(t,s)
         nt = deepcopy(t)
         if t.coeff == s.coeff
             nt.comp = $f(t.comp, s.comp)
@@ -206,15 +204,18 @@ function resolve_dependents(tensor, equation)
     subs = subs[perm]
 
     # assemble reduced tensor
-    redtensor = deepcopy(tensor)
+    # we saw segfaults from libsymengine when we did a deepcopy of tensor here and later
+    # below subsituted tensor with redtensor; so if this happens again, first try to
+    # remove the remaining deepcopy calls in SymbolicTensor overloads
+    redtensor = similar(tensor)
     for idx = 1:length(redtensor)
         for (d, s) in zip(deps, subs)
-            redtensor[idx] = SymEngine.subs(redtensor[idx], d, s)
+            redtensor[idx] = SymEngine.subs(tensor[idx], d, s)
         end
         for d in deps_zeros
-            redtensor[idx] = SymEngine.subs(redtensor[idx], d, 0)
+            redtensor[idx] = SymEngine.subs(tensor[idx], d, 0)
         end
-        redtensor[idx] = SymEngine.expand(redtensor[idx])
+        redtensor[idx] = SymEngine.expand(tensor[idx])
     end
 
     return redtensor
