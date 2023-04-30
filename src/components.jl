@@ -394,14 +394,14 @@ end
 
 # we carry out the contraction using @meinsum
 # we do so by interpolating/capturing the views of the rhs tensors into a let block
-# for the lhs tensor we capture a deepcopy of its view and then return it
+# for the lhs tensor we capture a copy of its view and then return it
 #
 # E.g.
 #   A[i,j] = B[i,j,k] * C[k]
 # translates to
 #   v_A = view(...)
 #   ...
-#   ret_A = let A = deepcopy(v_A), B = v_B, C = v_C
+#   ret_A = let A = SymbolicTensor(v_A), B = v_B, C = v_C
 #       A = @meinsum A[i,j] = B[i,j,k] * C[k]
 #   end
 #
@@ -469,7 +469,7 @@ function generate_code_unroll_equations(eq)
     lhs_head, lhs_ghead = first(gend_lhs_heads_idxs)[1:2]
     ret_lhs = Symbol(:ret_, lhs_ghead)
     let_tensor_expr = quote
-        $ret_lhs = let $lhs_ghead = deepcopy($lhs_ghead)
+        $ret_lhs = let #$lhs_ghead = SymbolicTensor($lhs_ghead)
             TensorComponents.@meinsum $lhs = $rhs
         end
     end

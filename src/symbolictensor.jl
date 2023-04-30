@@ -37,6 +37,9 @@ end
 SymbolicTensor(head::Symbol, dims::Int64...) = SymbolicTensor(head, Basic(1), dims...)
 
 
+SymbolicTensor(s::SymbolicTensor) = SymbolicTensor(s.head, s.coeff, size(s)...)
+
+
 #######################################################################
 #                               Methods                               #
 #######################################################################
@@ -53,14 +56,14 @@ LinearAlgebra.det(s::SymbolicTensor) = det(s.comp)
 for f in (:*, :/, :\)
     if f !== :\
         @eval function Base.$f(a::Union{Number,Basic}, t::SymbolicTensor)
-            nt = deepcopy(t)
+            nt = SymbolicTensor(t)
             nt.coeff = ($f)(nt.coeff, a)
             return nt
         end
     end
     if f !== :/
         @eval function Base.$f(t::SymbolicTensor, a::Union{Number,Basic})
-            nt = deepcopy(t)
+            nt = SymbolicTensor(t)
             nt.coeff = ($f)(a, nt.coeff)
             return nt
         end
@@ -71,12 +74,12 @@ end
 for f in (:+, :-)
     @eval function Base.$f(t::SymbolicTensor, s::AbstractArray)
         promote_rule(t,s)
-        nt = deepcopy(t)
+        nt = SymbolicTensor(t)
         nt.comp = $f(t.coeff * t.comp, s)
         return nt
     end
     @eval function Base.$f(t::SymbolicTensor, s::SymbolicTensor)
-        nt = deepcopy(t)
+        nt = SymbolicTensor(t)
         if t.coeff == s.coeff
             nt.comp = $f(t.comp, s.comp)
         else
@@ -136,11 +139,10 @@ function resolve_dependents(tensor, equation)
     if rk == 0
         # TODO Should display also relevant line
         @warn "Equation does not provide any constraints"
-        return deepcopy(tensor)
+        return tensor
     end
 
     # reduce coeff matrix to row echelon form
-    # this is slow because it uses Gaussian elimination
     RowEchelon.rref!(coeffs)
     echelon_coeffs = convert.(Rational{Int64}, coeffs)
     red_coeffs = view(echelon_coeffs, 1:rk, :)
@@ -149,7 +151,7 @@ function resolve_dependents(tensor, equation)
     v_tensor = view(tensor, :)
     # assembling using a scalar product (dot) between v_tensor and each row of red_coeffs can
     # be slow, because it must call into SymEngine for every element.
-    # red_coeffs is usually sparse, so we exploit that here to speed things up.
+    # but red_coeffs is usually sparse, so we exploit that here to speed things up.
     red_eqs = Basic[]
     for row in eachrow(red_coeffs)
         eq = Basic(0)
