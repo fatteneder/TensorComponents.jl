@@ -38,12 +38,14 @@ function meinsum(expr)
     expr = MacroTools.flatten(expr)
 
     @assert isassignment(expr)
+    if !isassignment(expr)
+        throw(ArgumentError("@meinsum: expected assignment like 'LHS = RHS', found $expr"))
+    end
     lhs, rhs = getlhs(expr), getrhs(expr)
 
     # 1. setup
     # - get all open indices LHS
     # - get all open indices RHS
-    # getopenindices should already check for consistency in a tensor expression
     lhs_idxs = getindices(lhs)
     rhs_idxs = getindices(rhs)
 
@@ -63,8 +65,9 @@ function meinsum(expr)
     if !isempty(getcontractedindices(lhs))
         throw(ArgumentError("@meinsum: lhs cannot have contracted indices: $lhs"))
     end
-    @assert isempty(getcontractedindices(lhs))
-    @assert ispermutation(rhs_idxs, permutation_catalog(lhs_idxs))
+    if !ispermutation(rhs_idxs, permutation_catalog(lhs_idxs))
+        throw(ArgumentError("@meinsum: mismatch between open indices between lhs and rhs: $expr"))
+    end
     rhs_conidxs = getcontractedindices(rhs)
 
     # 3. unroll and contract
@@ -152,7 +155,6 @@ function meinsum(expr)
             push!(init_tmpvars, :($tmplhs = 0))
         end
     end
-    # display(theloop)
 
     # # setup loop arguments
     # loop_idxs      = [ :($i = $gi) for (i,gi) in zip(rhs_idxs,gen_idxs) ]

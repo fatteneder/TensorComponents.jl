@@ -179,6 +179,9 @@ function parse_heads_idxpairs_symmetries(exprs)
             error("@components: @symmetry: a relation can only involve one tensor, found multiple ones '$(join(ts,','))' in '$ex'")
         end
         head = ts[1]
+        if !(head isa Symbol)
+            error("@components: @symmetry: can't have function call in symmetry relations, found '$head' in '$ex'")
+        end
 
         allidxs_lhs, allidxs_rhs = getallindices(lhs), getallindices(rhs)
         idxs_lhs, idxs_rhs       = getindices(lhs), getindices(rhs)
@@ -220,7 +223,7 @@ function parse_heads_idxpairs_equations(eqs)
         lhs, rhs = getlhs(eq), getrhs(eq)
 
         if isfunctioncall(lhs)
-            error("@components: LHS cannot involve function calls, found '$lhs'!")
+            error("@components: LHS cannot involve function calls, found '$lhs' in equation '$eq'!")
         end
 
         lhs_heads_idxs = if istensorexpr(lhs)
@@ -228,7 +231,7 @@ function parse_heads_idxpairs_equations(eqs)
         elseif isscalarexpr(lhs)
             [ (lhs, []) ]
         else
-            error("@components: This should not have happened; don't know how to handle: '$lhs'!")
+            error("@components: This should not have happened; don't know how to handle '$lhs' in equation '$eq'!")
         end
 
         # strip any function calls
@@ -245,7 +248,7 @@ function parse_heads_idxpairs_equations(eqs)
             scalars = getscalars(rhs)
             [ (s, []) for s in scalars ]
         else
-            error("@components: This should not have happened; don't know how to handle: '$rhs'!")
+            error("@components: This should not have happened; don't know how to handle '$rhs' in equation '$eq'!")
         end
 
         for heads_idxs in (lhs_heads_idxs, rhs_heads_idxs), (head, idxs) in heads_idxs
@@ -256,10 +259,10 @@ function parse_heads_idxpairs_equations(eqs)
             if !isnothing(i)
                 prev_idxs = tensoridxs[i]
                 if length(prev_idxs) != length(idxs)
-                    prev_eq = eqs[linenrs[i]]
                     if nr == i # inconsistenchy occured on the same line
                         error("@components: found tensor '$head' with inconsistent rank, in '$eq'")
                     else
+                        prev_eq = eqs[linenrs[i]]
                         error("""@components: found tensor '$head' with inconsistent rank, compare
                                 $prev_eq
                                   vs.
@@ -404,7 +407,7 @@ end
 #
 # using a let block here has sevaral advantages:
 # - we can forward the equation directly to @meinsum, so we get the full stack trace
-# from TensorOperations in case there is a problem with index contractions
+# from it in case there is a problem with index contractions
 # - we don't have to replace tensor heads with their view'd symbols; @meinsum will
 # see the equation that was actually entered
 # - in fact, one can not even (easily) use MacroTools.pre/postwalk to replace the
