@@ -207,15 +207,19 @@ function resolve_dependents(tensor, equation)
     # we saw segfaults from libsymengine when we did a deepcopy of tensor here and later
     # below subsituted tensor with redtensor; so if this happens again, first try to
     # remove the remaining deepcopy calls in SymbolicTensor overloads
-    redtensor = similar(tensor)
+    # Hold on: Can't use a similar call and then copy elements with redtensor .= tensor,
+    # because then redtensor[1] === tensor[1], e.g. they refer to the same instance from
+    # libsymengine. Instead force the creation of a new instance. (Note that Basic.(tensor)
+    # alone also makes a copy).
+    redtensor = Basic.(string.(tensor))
     for idx = 1:length(redtensor)
         for (d, s) in zip(deps, subs)
-            redtensor[idx] = SymEngine.subs(tensor[idx], d, s)
+            redtensor[idx] = SymEngine.subs(redtensor[idx], d, s)
         end
         for d in deps_zeros
-            redtensor[idx] = SymEngine.subs(tensor[idx], d, 0)
+            redtensor[idx] = SymEngine.subs(redtensor[idx], d, 0)
         end
-        redtensor[idx] = SymEngine.expand(tensor[idx])
+        redtensor[idx] = SymEngine.expand(redtensor[idx])
     end
 
     return redtensor
