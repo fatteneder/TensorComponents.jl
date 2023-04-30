@@ -159,3 +159,18 @@ function mergecounts(d1::AbstractDict, ds::AbstractDict...)
     return counts
 end
 mergecounts(d1::AbstractDict, d2::AbstractDict) = mergecounts!(Dict{Symbol,Int},d1,d2)
+
+
+# cofactor matrix of A, cf. https://en.wikipedia.org/wiki/Adjugate_matrix
+function cofactor(A::AbstractMatrix)
+    ax = axes(A)
+    out = similar(A, ax)
+    for col in ax[1], row in ax[2]
+        notrow = [ i for i in ax[1] if i != row ]
+        notcol = [ i for i in ax[2] if i != col ]
+        out[col, row] = (-1)^(col + row) * det(A[notcol, notrow])
+    end
+    return out
+end
+adjugate(A::AbstractMatrix) = transpose(cofactor(A))
+inverse(A::AbstractMatrix) = det(A) * adjugate(A)
