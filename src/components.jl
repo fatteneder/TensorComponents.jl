@@ -217,7 +217,7 @@ end
 function parse_heads_idxpairs_equations(eqs)
 
     # record linenrs for debugging
-    tensorheads, tensoridxs, linenrs = Symbol[], Vector{Any}[], Int[]
+    tensorheads, tensoridxs, linenrs = Any[], Vector{Any}[], Int[]
     for (nr, eq) in enumerate(eqs)
 
         lhs, rhs = getlhs(eq), getrhs(eq)
@@ -461,9 +461,9 @@ function generate_code_unroll_equations(eq)
     end
 
     # define views of lhs and rhs tensor, if any
-    vlhs_tensors = [ :($ghead = view($head, $(idxs...)))
+    vlhs_tensors = [ :($ghead = collect(view($head, $(idxs...))))
                     for (head,ghead,idxs,_) in gend_lhs_heads_idxs if length(idxs) > 0 ]
-    vrhs_tensors = [ :($ghead = view($head, $(idxs...)))
+    vrhs_tensors = [ :($ghead = collect(view($head, $(idxs...))))
                     for (head,ghead,idxs,_) in gend_rhs_heads_idxs if length(idxs) > 0 ]
 
     lhs_head, lhs_ghead = first(gend_lhs_heads_idxs)[1:2]
@@ -548,9 +548,9 @@ function generate_code_resolve_symmetries(ex_sym)
     end
 
     # define views of lhs and rhs tensors, if any
-    vlhs_tensors = [ :($ghead = view($head, $(idxs...)))
+    vlhs_tensors = [ :($ghead = collect(view($head, $(idxs...))))
                     for (head,ghead,idxs) in gend_lhs_heads_idxs if length(idxs) > 0 ]
-    vrhs_tensors = [ :($ghead = view($head, $(idxs...)))
+    vrhs_tensors = [ :($ghead = collect(view($head, $(idxs...))))
                     for (head,ghead,idxs) in gend_rhs_heads_idxs if length(idxs) > 0 ]
 
     eqvar = gensym(:eq)

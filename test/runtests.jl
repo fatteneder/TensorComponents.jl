@@ -76,7 +76,13 @@ const TC = TensorComponents
         @symmetry A[i,j,k] = A[i,k,j]
         @symmetry A[i,j,k] = A[k,j,i]
     end); true)
-    # can also use 1-argument math functions
+
+    # there are three kinds of functions we can use
+    # - TensorComponents.scalar_to_scalar_funcs()
+    # - TensorComponents.tensor_to_scalar_funcs()
+    # - TensorComponents.tensor_to_tensor_funcs()
+    #
+    # scalar_to_scalar_funcs
     @test (eval(@components begin
         @index i = 4
         A[i] = cos(α[i])
@@ -86,6 +92,22 @@ const TC = TensorComponents
         @index i = 4
         A[i] = log(abs(α[i]))
     end); true)
+    # tensor_to_scalar_funcs
+    @test (eval(@components begin
+        @index i,j = 4
+        detA = det(A[i,j])
+    end); true)
+    # tensor_to_tensor_funcs
+    @test (eval(@components begin
+        @index i,j = 4
+        adjugate_A[i,j] = adjugate(A[i,j])
+    end); true)
+    # we can mix them too
+    @test (eval(@components begin
+        @index i,j = 4
+        logdetA = log(abs(det(A[i,j])))
+    end); true)
+
 
     ### invalid use
 
@@ -159,6 +181,23 @@ const TC = TensorComponents
     @test_throws LoadError eval(TC.components(quote
         @index i = 3
         A[i,i] = a
+    end))
+
+    # invalid function calls
+    @test_throws ErrorException eval(TC.components(quote
+        @index i,j = 3
+        A[i,j] = a[i] * a[j]
+        detA = det(A)
+    end))
+    @test_throws ErrorException eval(TC.components(quote
+        @index i,j = 3
+        A[i,j] = a[i] * a[j]
+        adjugate_A[i,j] = adjugate(A)
+    end))
+    @test_throws ErrorException eval(TC.components(quote
+        @index i,j = 3
+        A[i,j] = a[i] * a[j]
+        adjugate_A[i,j] = adjugate(A)
     end))
 
 end
@@ -555,6 +594,12 @@ end
     E = TC.SymbolicTensor(:E,4,4,4)
     expected = [ tr(E[i,:,:]) for i = 1:4 ]
     got = TC.@meinsum D[i] = E[i,k,k]
+    @test got == expected
+
+    M = TC.SymbolicTensor(:M,3,3)
+    i,j = [ TC.Index(3) for _ = 1:2 ]
+    expected = det(M)
+    got = TC.@meinsum detM = det(M[i,j])
     @test got == expected
 
 end

@@ -37,6 +37,54 @@ function meinsum(expr)
     expr = MacroTools.postwalk(rmlines, expr)
     expr = MacroTools.flatten(expr)
 
+    # 0. preprocess
+    # We support three kinds of functions
+    #   - scalar to scalar, e.g. logα[i]   = log(α[i])
+    #   - tensor to scalar, e.g. detg      = det(g[a,b])
+    #   - tensor to tensor, e.g. invg[a,b] = adjugate(g[a,b]) / detg
+    # the supported functions are declared with
+    #   - scalar_to_scalar_funcs(),
+    #   - tensor_to_scalar__funcs(),
+    #   - tensor_to_tensor_funcs().
+    precomputes_dummies = Symbol[]
+    precomputes = Expr[]
+    expr = MacroTools.postwalk(expr) do node
+        !isfunctioncall(node) && return node
+        fn = node.args[1]
+        if fn in scalar_to_scalar_funcs()
+            # we apply function elementwise, so nothing to do
+            return node
+        elseif fn in tensor_to_scalar__funcs()
+            # replace the function's argument with a dummy scalar
+            # and precompute dummy variables before unrolling
+            arg = node.args[2]
+            if !istensor(arg)
+                throw(ArgumentError("@meinsum: tensor-to-scalar function '$fn' can't be applied to '$arg'"))
+            end
+            head, idxs = decomposetensor(arg)
+            dummy = gensym(Symbol(fn,:_,head))
+            push!(precomputes, :($dummy = $fn($head)))
+            push!(precomputes_dummies, dummy)
+            new_node = dummy
+            return new_node
+        elseif fn in tensor_to_tensor_funcs()
+            # replace the function's argument with a dummy tensor
+            # and precompute dummy variables before unrolling
+            arg = node.args[2]
+            if !istensor(arg)
+                throw(ArgumentError("@meinsum: tensor-to-tensor function '$fn' can't be applied to '$arg'"))
+            end
+            head, idxs = decomposetensor(arg)
+            dummy = gensym(Symbol(fn,:_,head))
+            push!(precomputes, :($dummy = $fn($head)))
+            push!(precomputes_dummies, dummy)
+            new_node = :($dummy[$(idxs...)])
+            return new_node
+        else
+            error()
+        end
+    end
+
     @assert isassignment(expr)
     if !isassignment(expr)
         throw(ArgumentError("@meinsum: expected assignment like 'LHS = RHS', found $expr"))
@@ -112,7 +160,7 @@ function meinsum(expr)
     rhs_tensors = gettensors(rhs)
     unique!(rhs_tensors)
     rhs_heads = [ decomposetensor(t)[1] for t in rhs_tensors ]
-    append!(let_args, :($h = $h) for h in rhs_heads )
+    append!(let_args, :($h = $h) for h in rhs_heads if !(h in precomputes_dummies) )
     append!(let_args, :($gi = $i) for (i,gi) in pairs(idx_dict) )
     append!(let_args, :($gi = $i) for (i,gi) in pairs(conidx_dict) )
     append!(let_args, i for i in rhs_idxs )
@@ -173,10 +221,17 @@ function meinsum(expr)
     # code = Expr(:let, Expr(:block, let_args...), Expr(:block, for_loop, lhs_head))
 
     # TODO Add asserts for tensor sizes
-    code = Expr(:let, Expr(:block, let_args...), Expr(:block, init_tmpvars..., theloop, lhs_head))
+    code = quote
+        let $(let_args...)
+            $(init_tmpvars...)
+            $(precomputes...)
+            $theloop
+            $lhs_head
+        end
+    end
+    code = MacroTools.postwalk(rmlines, code)
 
     return code
-
 end
 
 
@@ -403,15 +458,20 @@ istensor(ex) = ex.head === :ref && length(ex.args) >= 2
 # update all callsites of isfunctioncall too
 function isfunctioncall(ex::Expr)
     ex.head === :call || return false
-    length(ex.args) > 1 || return false
-    length(ex.args) == 2 && ex.args[1] in (:tan,:sin,:cos,:atan,:asin,:acos,
-                                           :tanh,:sinh,:cosh,:atanh,:asinh,:acosh,
-                                           :cot,:sec,:acot,:asec,:coth,:sech,
-                                           :log,:log10,:log2,:log1p,
-                                           :exp,:exp10,:exp2,:expm1,
-                                           :sinpi,:cospi, :abs)
+    length(ex.args) == 2 || return false
+    ex.args[1] !== (:ref,:*,:-,:/,:\,:+)
 end
 isfunctioncall(ex) = false
+
+
+scalar_to_scalar_funcs()  = (:tan,:sin,:cos,:atan,:asin,:acos,
+                             :tanh,:sinh,:cosh,:atanh,:asinh,:acosh,
+                             :cot,:sec,:acot,:asec,:coth,:sech,
+                             :log,:log10,:log2,:log1p,
+                             :exp,:exp10,:exp2,:expm1,
+                             :sinpi,:cospi, :abs)
+tensor_to_tensor_funcs()  = (:adjugate,)
+tensor_to_scalar__funcs() = (:det,)
 
 
 ### non-atomic analyzers

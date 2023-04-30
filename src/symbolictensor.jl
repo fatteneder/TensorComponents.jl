@@ -1,4 +1,4 @@
-mutable struct SymbolicTensor{N} <: DenseArray{Basic,N}
+mutable struct SymbolicTensor{N} <: AbstractArray{Basic,N}
     head::Symbol
     comp::Array{Basic,N}
     deps::Vector{Basic}
@@ -28,8 +28,8 @@ function SymbolicTensor(head::Symbol, coeff::Basic, dims::Int64...)
     all(d -> d > 0, dims) || throw(ArgumentError("Dimensions must be positive, found: $(dims...)"))
     cidxs = CartesianIndices(dims)
     comps = [ symbols("$(head)$(join(Tuple(c)))") for c in cidxs ]
-    ideps = deepcopy(comps[:])
-    deps  = deepcopy(comps[:])
+    ideps = Basic.(string.(comps[:]))
+    deps  = Basic.(string.(comps[:]))
     return SymbolicTensor(head, comps, deps, ideps, coeff)
 end
 
@@ -44,6 +44,9 @@ SymbolicTensor(head::Symbol, dims::Int64...) = SymbolicTensor(head, Basic(1), di
 
 # Should be done upstream in SymEgine: https://github.com/symengine/SymEngine.jl/pull/260
 Base.promote_rule(::Type{Bool}, ::Type{Basic}) = Basic
+
+
+LinearAlgebra.det(s::SymbolicTensor) = det(s.comp)
 
 
 # Overload scalar operations *,/,\,+,- to capture common coefficients, if possible.
