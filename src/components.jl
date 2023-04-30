@@ -18,9 +18,6 @@ function components(expr)
 
     verify_tensors_indices(allheads, allidxpairs, def_idxs)
 
-    # determine independent tensors; relies on tensors having consistent ranks
-    idep_heads = determine_independents(ex_eqs)
-
     # for each tensor determine all indices used in every slot
     uheads, grouped_idxs = group_indices_by_slot(allheads, allidxpairs)
 
@@ -308,60 +305,6 @@ function verify_tensors_indices(tensorheads, idxpairs, defined_idxs)
     end
 end
 
-
-
-# Walk through equations and determine tensors which we have not been computed before
-# they are used. E.g. returns all tensors that did not appear in a lhs before they first
-# appeared in a rhs.
-function determine_independents(eqs)
-
-    ideps = Symbol[]
-    defined = Symbol[]
-
-    N = length(eqs)
-
-    N == 0 && return ideps
-
-    LHSs, RHSs = getlhs.(eqs), getrhs.(eqs)
-
-    # everyting in rhs of first equation is independent
-    rhs_ts = gettensorheads(RHSs[1])
-    append!(ideps, rhs_ts)
-
-    N == 1 && return ideps
-
-    lhs_ts = gettensorheads(LHSs[1])
-    if isscalarexpr(LHSs[1])
-        push!(defined, LHSs[1])
-    elseif length(lhs_ts) == 1
-        push!(defined, lhs_ts[1])
-    else
-        length(lhs_ts) != 1 && error("@components: found invalid LHS in '$(eqs[1])'")
-    end
-
-    for i in 2:N
-        li, ri = LHSs[i], RHSs[i]
-        rhs_ts = gettensorheads(ri)
-        for t in rhs_ts
-            if !(t in defined)
-                push!(ideps, t)
-            end
-        end
-        lhs_ts = gettensorheads(li)
-        if isscalarexpr(li)
-            push!(defined, li)
-        elseif length(lhs_ts) == 1
-            push!(defined, lhs_ts[1])
-        else
-            length(lhs_ts) != 1 && error("@components: found invalid LHS in '$(eqs[1])'")
-        end
-        # push!(defined, lhs_ts[1])
-    end
-
-    unique!(ideps)
-
-    return ideps
-end
 
 
 # Given some `heads` and a list of indices `idxpairs` each head is used with,
