@@ -97,12 +97,13 @@ function meinsum(expr)
     lhs_idxs = getindices(lhs)
     rhs_idxs = getindices(rhs)
 
-    if lhs_idxs != rhs_idxs
+    if sort(lhs_idxs) != sort(rhs_idxs)
         throw(ArgumentError("@meinsum: unbalanced open indices between lhs and rhs: $expr"))
     end
     if rhs isa Expr && rhs.head === :call && rhs.args[1] in (:+,:-)
         rhs_idxs_list = getindices.(rhs.args[2:end])
-        if any(idxs -> sort!(idxs) != rhs_idxs, rhs_idxs_list)
+        sorted_rhs_idxs = sort(rhs_idxs)
+        if any(idxs -> sort!(idxs) != sorted_rhs_idxs, rhs_idxs_list)
             throw(ArgumentError("@meinsum: inconsistent open indices on rhs: $rhs"))
         end
     end
@@ -178,6 +179,7 @@ function meinsum(expr)
     init_tmpvars = Any[]
     thebody = Expr(:block, tmpexpr)
     theloop = Expr(:for, Expr(:block, [ :($i = $(allidx_dict[i])) for i in conidxs ]...), thebody)
+    parentloop = thebody
     for (tmplhs, tmprhs) in reverse(computestack)
 
         openidxs = getindices(tmplhs)
@@ -192,7 +194,15 @@ function meinsum(expr)
         #                       :($tmplhs += $tmprhs)) )
         loop = Expr(:for, Expr(:block, [ :($i = $(allidx_dict[i])) for i in conidxs ]...),
                           :($tmplhs += $tmprhs) )
-        pushfirst!(thebody.args, loop)
+
+        if openidxs != lhs_idxs && istraced(tmprhs)
+            tmplhs_head, _ = decomposetensor(tmplhs)
+            parentloop.args[1].args[2] = Expr(:block, :(fill!($tmplhs_head, 0)), loop, parentloop.args[1].args[2])
+            parentloop = loop
+        else
+            # push!(nestedloop.args, loop)
+            pushfirst!(thebody.args, loop)
+        end
 
         # also need to initialize the temporary variables
         if !isempty(openidxs)
@@ -307,15 +317,21 @@ function getallindices(expr::Expr)
     return idxs
 end
 
+istraced(expr) = false
+function istraced(expr::Expr)
+    istensor(expr) || return false
+    return !isempty(getcontractedindices(expr))
+end
+
 
 # =^= getopenindices
-getindices(ex) = sort!(unique(_getindices(ex)))
+getindices(ex) = unique(_getindices(ex))
 function _getindices(ex::Expr)
     if isfunctioncall(ex)
         return _getindices(ex.args[2])
     elseif istensor(ex)
         idxs = ex.args[2:end]
-        uidxs = unique(ex.args[2:end])
+        uidxs = unique(idxs)
         is_notdup = findall(i -> count(j -> j == i, idxs) == 1, idxs)
         return isempty(is_notdup) ? Any[] : idxs[is_notdup]
     elseif istensorexpr(ex)
@@ -346,7 +362,9 @@ _getindices(ex::Int) = []
 function getcontractedindices(ex)
     allidxs = getallindices(ex)
     openidxs = getindices(ex)
-    return [ i for i in allidxs if !(i in openidxs) ]
+    return filter(allidxs) do i
+        !(i in openidxs)
+    end
 end
 
 

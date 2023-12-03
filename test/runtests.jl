@@ -602,4 +602,20 @@ end
     got = TC.@meinsum detM = det(M[i,j])
     @test got == expected
 
+    A = TC.SymbolicTensor(:A,3,3)
+    B = TC.SymbolicTensor(:B,3,3,3,3)
+    C = TC.SymbolicTensor(:C,3,3)
+    i,j,k,l = [ TC.Index(3) for _ = 1:4 ]
+    got = TC.@meinsum begin
+        C[i,j] = A[i,l] * B[k,l,k,j]
+    end
+    expected = zero(similar(A))
+    for ii = i.rng, jj = j.rng, ll = l.rng, kk = k.rng
+        expected[ii,jj] += A[ii,ll] * B[kk,ll,kk,jj]
+    end
+    subvals = Dict( var => rand(1:10) for var in vcat(A[:],B[:]) )
+    eval_expected = [ SymEngine.subs(v, subvals) for v in expected ]
+    eval_got = [ SymEngine.subs(v, subvals) for v in got ]
+    @test eval_got == eval_expected
+
 end
