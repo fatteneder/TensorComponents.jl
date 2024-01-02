@@ -1,13 +1,14 @@
 module TensorComponents
 
+using Reexport
 
 using Dates
-using LinearAlgebra
+@reexport using LinearAlgebra
 using MacroTools
 using Printf
 using Random
 using RowEchelon
-using SymEngine
+@reexport using SymEngine
 
 
 export @components, @generate_code, @test_code, adjugate
