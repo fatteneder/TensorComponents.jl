@@ -404,9 +404,10 @@ function generate_code_unroll_equations(eq)
     end
 
     # define views of lhs and rhs tensor, if any
-    vlhs_tensors = [ :($ghead = collect(view($head, $(idxs...))))
+    # extract only component when all indices are integers
+    vlhs_tensors = [ all(i -> i isa Integer,idxs) ? :($ghead = $head[$(idxs...)]) : :($ghead = collect(view($head, $(idxs...))))
                     for (head,ghead,idxs,_) in gend_lhs_heads_idxs if length(idxs) > 0 ]
-    vrhs_tensors = [ :($ghead = collect(view($head, $(idxs...))))
+    vrhs_tensors = [ all(i -> i isa Integer,idxs) ? :($ghead = $head[$(idxs...)]) : :($ghead = collect(view($head, $(idxs...))))
                     for (head,ghead,idxs,_) in gend_rhs_heads_idxs if length(idxs) > 0 ]
 
     lhs_head, lhs_ghead = first(gend_lhs_heads_idxs)[1:2]
