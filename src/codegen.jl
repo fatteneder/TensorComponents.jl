@@ -4,6 +4,48 @@ macro generate_code(comps, outputs, kwargs...)
 end
 
 
+function nextind_bychars(str, start, nchars)
+    c = 1
+    i = nextind(str, min(start,ncodeunits(str)))
+    while c <= nchars && i < ncodeunits(str)
+        i = nextind(str, i)
+        c += 1
+    end
+    return i
+end
+
+
+breakstring(str::AbstractString, breakchar::Char=','; breakafter=80) =
+    breakstring(str, [breakchar], breakafter=breakafter)
+function breakstring(str::AbstractString, breakchars::Vector{Char}=[',']; breakafter=80)
+
+    display(str)
+    length(str) <= breakafter && return str
+    buf = IOBuffer()
+    start = nextind(str,0)
+    stop = nextind_bychars(str,0,breakafter)
+
+    while start <= ncodeunits(str)
+        stop = findnext(str, stop) do c
+            c in breakchars
+        end
+        if isnothing(stop)
+            stop = ncodeunits(str)
+        end
+        println(buf, view(str,start:stop))
+        # move on
+        start = nextind(str,stop)
+        skipspace = match(r"^(\s*)", view(str, start:length(str)))
+        if !isnothing(skipspace)
+            start += length(skipspace[1])
+        end
+        stop = min(nextind_bychars(str, start, breakafter),ncodeunits(str))
+    end
+
+    return String(take!(buf))
+end
+
+
 function generate_code(codegen_filename, comps, outputs; kwargs...)
     rest, ext = splitext(codegen_filename)
     func_name = basename(rest)
@@ -11,8 +53,20 @@ function generate_code(codegen_filename, comps, outputs; kwargs...)
 
     @info "Exporting to '$src_filename' ..."
     code, ins, outs, libdeps = _generate_code(func_name, comps, outputs; kwargs...)
-    @info "detected  input  variables: '$(join(ins,','))'"
-    @info "requested output variables: '$(join(outs,','))'"
+
+    str_ins  = join(ins,',')
+    str_outs = join(outs,',')
+    str_ins = breakstring(str_ins,',')
+    str_outs = breakstring(str_outs,',')
+
+    str_detected  = "detected input variables:\n$str_ins"
+    str_requested = "requested output variables:\n$str_outs"
+    @info str_detected
+    @info str_requested
+
+    # insert comment chars
+    str_detected = "# " * replace(str_detected, '\n' => "\n# ", count=max(count('\n',str_detected)-1,1))
+    str_requested = "# " * replace(str_requested, '\n' => "\n# ", count=max(count('\n',str_requested)-1,1))
 
     # gather operation counts and prepare printer
     stats = count_operations(comps)
@@ -36,8 +90,8 @@ function generate_code(codegen_filename, comps, outputs; kwargs...)
         end
         Printf.format(file, fmt, "Σ", total, 100)
         println(file)
-        println(file, "# detected  input  variables: '$(join(ins,','))'")
-        println(file, "# requested output variables: '$(join(outs,','))'")
+        println(file, str_detected)
+        println(file, str_requested)
         println(file)
         for dep in libdeps
             println(file, "using $dep")
