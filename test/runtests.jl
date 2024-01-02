@@ -202,6 +202,13 @@ const TC = TensorComponents
         adjugate_A[i,j] = adjugate(A)
     end))
 
+
+    # This should not throw
+    # comps = @components begin
+    #     @index a, b, c, d, k = 3
+    #     ss[i] = 1/2 * ( Tuu[1,1] * β[j] * β[k] ) * (∂γ[i,j,k] - 2*hΓ[l,i,j]*γ[l,k])
+    # end
+
 end
 
 
@@ -391,6 +398,10 @@ end
     @test TC.isscalarexpr(:(a / A[i,j] + B[i,j])) == false
     @test TC.isscalarexpr(:(A[i] * A[i])) == true
     @test TC.isscalarexpr(:(a + A[i] * A[i])) == true
+    @test TC.isscalarexpr(:(A[0])) == true
+    @test TC.isscalarexpr(:(A[i,0,i])) == true
+    @test TC.isscalarexpr(:(A[i,j,0])) == false
+    @test TC.isscalarexpr(:(A[0,j,0])) == false
 
     @test TC.istensor(:(a)) == false
     @test TC.istensor(:(A[i,j])) == true

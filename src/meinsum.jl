@@ -81,7 +81,7 @@ function meinsum(expr)
             new_node = :($dummy[$(idxs...)])
             return new_node
         else
-            error()
+            error("@meinsum: found unexpected function call $fn in node $node in expression $expr")
         end
     end
 
@@ -250,8 +250,12 @@ function make_compute_stack(expr)
     stack = Tuple{Any,Expr}[]
     istensor(expr) && iscontraction(expr) && return stack
 
+    # @info expr
+
     # !iscontraction(expr) && return stack
     new_ex = MacroTools.postwalk(expr) do ex
+
+        # @show ex
 
         !iscontraction(ex) && return ex
 
@@ -283,7 +287,11 @@ function make_compute_stack(expr)
             new_ex = Expr(:call, :*)
             append!(new_ex.args, rest)
             push!(new_ex.args, contracted_tensor)
+            new_ex
         end
+
+        # @show contracted, rest, contracted_tensor
+        # @show new_ex
 
         return new_ex
     end
@@ -324,8 +332,14 @@ function istraced(expr::Expr)
 end
 
 
+lt_symint(x::Integer,y::Integer) = x < y
+lt_symint(x::Symbol,y::Symbol)   = x < y
+lt_symint(x::Integer,y::Symbol)  = true
+lt_symint(x::Symbol,y::Integer)  = false
+
+
 # =^= getopenindices
-getindices(ex) = unique(_getindices(ex))
+getindices(ex) = sort!(unique(_getindices(ex)), lt=lt_symint)
 function _getindices(ex::Expr)
     if isfunctioncall(ex)
         return _getindices(ex.args[2])
@@ -468,7 +482,8 @@ isassignment(ex::Expr) = (ex.head == :(=) || ex.head == :(+=) || ex.head == :(-=
 # tensor =^= a single array
 istensor(ex::Symbol) = false
 istensor(ex::Number) = false
-istensor(ex) = ex.head === :ref && length(ex.args) >= 2
+istensor(ex) = false
+istensor(ex::Expr) = ex.head === :ref && length(ex.args) >= 2
 
 
 # for now only restrict to elementary functions with 1 arg
@@ -510,6 +525,7 @@ isgeneraltensor(ex) = false
 
 # anything with open indices is not a scalar expression
 function isscalarexpr(ex::Expr)
+    ex.head === :ref && all(i -> i isa Integer, getindices(ex)) && return true
     ex.head === :call || return false
     isfunctioncall(ex) && return isscalarexpr(ex.args[2])
     ex.args[1] in (:+,:-) && return all(a -> isscalarexpr(a), ex.args[2:end])
@@ -529,6 +545,7 @@ function iscontraction(ex::Expr)
     istensor(ex) && !isempty(getcontractedindices(ex)) && return true
     isgeneraltensor(ex) && return any(a -> iscontraction(a), ex.args[2:end])
     !istensorexpr(ex) && return false
+    all(a -> isscalarexpr(a), ex.args[2:end]) && return true
     !(ex.head === :call && length(ex.args) >= 3 && ex.args[1] === :* &&
       count(a -> istensor(a), ex.args) >= 2) && return false
     cidxs = getcontractedindices(ex)
