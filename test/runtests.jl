@@ -254,6 +254,10 @@ end
     @test TC.gettensorheads(:(A[i,j] * (b * B[k] - c * C[k]) / d)) == [ :A, :B, :C ]
 
     @test TC.getscalars(:(a)) == [ :a ]
+    @test TC.getscalars(:(1/a)) == [ :(1/a) ]
+    @test TC.getscalars(:(b/a)) == [ :(b/a) ]
+    @test TC.getscalars(:(b/a + c)) == [ :(b/a), :c ]
+    @test TC.getscalars(:((b+c)/c)) == [ :((b+c)/c) ]
     @test TC.getscalars(:(a * A[i,j])) == [ :a ]
     @test TC.getscalars(:(2 * a * A[i,j])) == [ :a ]
     @test TC.getscalars(:(a * 2 * A[i,j])) == [ :a ]

@@ -451,8 +451,12 @@ function _getscalars!(vars, ex::Expr)
     if istensor(ex)
         return
     elseif ex.head === :call
-        foreach(ex.args[2:end]) do a
-            _getscalars!(vars, a)
+        if ex.args[1] === :/
+            push!(vars, ex)
+        else
+            foreach(ex.args[2:end]) do a
+                _getscalars!(vars, a)
+            end
         end
     else
         error("Failed to extract variables from '$ex'")
