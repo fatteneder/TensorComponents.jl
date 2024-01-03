@@ -82,6 +82,7 @@ end
     @test TC.isscalarexpr(:((a \ 2)^c)) == false
     @test TC.isscalarexpr(:(A[i,j])) == false
     @test TC.isscalarexpr(:(a * A[i,j])) == false
+    @test TC.isscalarexpr(:(a * A[i,j] / b)) == false
     @test TC.isscalarexpr(:(a \ A[i,j])) == false
     @test TC.isscalarexpr(:(a / A[i,j])) == false
     @test TC.isscalarexpr(:(a / A[i,j] + B[i,j])) == false

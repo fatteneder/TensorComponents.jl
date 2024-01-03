@@ -528,8 +528,8 @@ function isscalarexpr(ex::Expr)
     isfunctioncall(ex) && return isscalarexpr(ex.args[2])
     ex.args[1] in (:+,:-) && return all(a -> isscalarexpr(a), ex.args[2:end])
     ex.args[1] === :* && return isempty(getindices(ex))
-    ex.args[1] === :/ && length(ex.args) == 3 && !istensor(ex.args[2]) &&
-        return isempty(getindices(ex.args[3]))
+    ex.args[1] === :/ && length(ex.args) == 3 && !istensor(ex.args[end]) &&
+        return isempty(getindices(ex))
     ex.args[1] === :^ && length(ex.args) == 3 && isscalarexpr(ex.args[2]) &&
         isscalarexpr(ex.args[3]) && return true
     return false
