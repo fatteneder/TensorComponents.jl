@@ -332,14 +332,8 @@ function istraced(expr::Expr)
 end
 
 
-lt_symint(x::Integer,y::Integer) = x < y
-lt_symint(x::Symbol,y::Symbol)   = x < y
-lt_symint(x::Integer,y::Symbol)  = true
-lt_symint(x::Symbol,y::Integer)  = false
-
-
 # =^= getopenindices
-getindices(ex) = sort!(unique(_getindices(ex)), lt=lt_symint)
+getindices(ex) = symsort!(unique(_getindices(ex)))
 function _getindices(ex::Expr)
     if isfunctioncall(ex)
         return _getindices(ex.args[2])

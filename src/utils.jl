@@ -47,6 +47,16 @@ function topological_sort(nodes::Vector{T}, childs::Vector{Vector{T}}) where T
 end
 
 
+lt_symint(x::Integer,y::Symbol) = true
+lt_symint(x::Integer,y::Expr)   = true
+lt_symint(x::Symbol,y::Integer) = false
+lt_symint(x::Expr,y::Integer)   = false
+lt_symint(x::Symbol,y::Expr)    = true
+lt_symint(x::Expr,y::Symbol)    = false
+lt_symint(x,y) = x < y
+symsort!(xs) = sort!(xs, lt=lt_symint)
+
+
 # From https://stackoverflow.com/a/16464566
 function isevenperm(perm)
     isperm(perm) || error()
