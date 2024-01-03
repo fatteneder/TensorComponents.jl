@@ -260,15 +260,7 @@ function make_compute_stack(expr)
         !iscontraction(ex) && return ex
 
         # extract contraction into separate expression
-        contracted, rest = decomposecontraction(ex)
-        contraction = if length(contracted) == 1
-            contracted[1]
-        else
-            Expr(:call, :*, contracted...)
-            # contraction = Expr(:call, :*)
-            # append!(contraction.args, contracted)
-            # contraction
-        end
+        contraction, rest = splitprod(ex)
         # generate a tensor head for the contraction so we can refer to it later
         openidxs = getindices(contraction)
         gend_head = gensym()
@@ -417,24 +409,8 @@ function decomposetensor(ex)
             istensor(a) && return (a.args[1], args[2:end])
         end
     else
-        throw(ArgumentError("not a vlid tensor: $ex"))
+        throw(ArgumentError("not a valid tensor: $ex"))
     end
-end
-
-
-function decomposecontraction(ex)
-    !iscontraction(ex) && return [], []
-    istensor(ex) && return [ex], []
-    cidxs = getcontractedindices(ex)
-    is = findall(ex.args) do a
-        !istensor(a) && return false
-        idxs = getallindices(a)
-        return any(ci -> ci in cidxs, idxs)
-    end
-    contracted = ex.args[is]
-    rest = [ ex.args[i] for i = 1:length(ex.args)
-            if i != 1 #= ex.args[1] === :* =# && !(i in is) ]
-    return contracted, rest
 end
 
 

@@ -270,21 +270,6 @@ end
     @test TC.getscalars(:(cos(α) * A[i,j] + B[j,i] * sin(α))) == [ :α ]
     @test TC.getscalars(:((a * A[i,j] + B[i,j]) * C[j,k] * d + e * F[i])) == [ :a, :d, :e ]
 
-    @test TC.decomposecontraction(:(A[i,i])) == ([:(A[i,i])], [])
-    @test TC.decomposecontraction(:(A[i,j] * B[k,l])) == ([], [])
-    @test TC.decomposecontraction(:(a * A[i,j] * B[i,j])) == ([:(A[i,j]), :(B[i,j])], [:a])
-    @test TC.decomposecontraction(:((a + b)^c * A[i,i])) == ([:(A[i,i])], [:((a+b)^c)])
-    # nothing to contract here (in some cases a sum is blocking contraction)
-    @test TC.decomposecontraction(:(A[i,j])) == ([],[])
-    @test TC.decomposecontraction(:(A[i,j] * B[k,l] + C[k,l] * D[i,j])) == ([], [])
-    @test TC.decomposecontraction(:(A[i,j] * B[k,l] + C[m,n] * D[o,p])) == ([], [])
-    @test TC.decomposecontraction(:(a)) == ([], [])
-    @test TC.decomposecontraction(:(a + b)) == ([], [])
-    @test TC.decomposecontraction(:((a + b)^c)) == ([], [])
-    @test TC.decomposecontraction(:((a + b)^c * A[i,j])) == ([], [])
-    @test TC.decomposecontraction(:(A[i,j] * B[j] - C[i,j] * D[j])) == ([], [])
-    @test TC.decomposecontraction(:((a + b)^c * A[i,j] * B[x] - C[y,z] * D[j] / x * y^2)) == ([], [])
-    @test TC.decomposecontraction(:(A[i,j] * (b * B[k] - c * C[k]) / d)) == ([], [])
     @test TC.splitprod(:(a)) == (nothing, [:a])
     @test TC.splitprod(:(a/b)) == (nothing, [:(a/b)])
     @test TC.splitprod(:((a+c)/b)) == (nothing, [:((a+c)/b)])
@@ -297,7 +282,6 @@ end
     @test TC.splitprod(:(A[i] * B[j])) == (:(A[i] * B[j]), [])
     @test TC.splitprod(:(A[i] * A[j])) == (:(A[i] * A[j]), [])
     @test TC.splitprod(:(A[j] * A[j])) == (:(A[j] * A[j]), [])
-
 
     # ### invalid use
     # # invalid index pattern
