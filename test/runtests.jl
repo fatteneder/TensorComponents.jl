@@ -146,7 +146,8 @@ end
     @test TC.istensorexpr(:(T[a,b] * (dg[k,a,b] - Γ[d,a,b] * g[d,k]))) == true
 
     @test TC.istensorprod(:(a)) == false
-    @test TC.istensorprod(:(A[i])) == false
+    @test TC.istensorprod(:(A[i])) == true
+    @test TC.istensorprod(:(a * A[i])) == true
     @test TC.istensorprod(:(A[i] * B[i])) == true
     @test TC.istensorprod(:(A[i] * B[j])) == true
     @test TC.istensorprod(:(A[i] * B[j] / d)) == true

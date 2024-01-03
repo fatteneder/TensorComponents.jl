@@ -588,11 +588,11 @@ iscontraction(ex) = false
 
 
 function istensorprod(ex::Expr)
+    istensor(ex) && return true
     !istensorexpr(ex) && return false
     ex.head !== :call && return false
     ex.args[1] === :/ && any(a -> istensorprod(a), ex.args[2:end]) && return true
-    ex.args[1] !== :* && return false
-    length(gettensors(ex)) > 1
+    ex.args[1] === :*
 end
 istensorprod(ex) = false
 
