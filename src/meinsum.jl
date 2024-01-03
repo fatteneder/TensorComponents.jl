@@ -560,6 +560,7 @@ isscalarexpr(ex::Number) = true
 
 
 function iscontraction(ex::Expr)
+    istensorprod(ex) || return false
     istensorprod(ex) && !isempty(getcontractedindices(ex)) && return true
     isgeneraltensor(ex) && return any(a -> iscontraction(a), ex.args[2:end])
     !istensorexpr(ex) && return false
