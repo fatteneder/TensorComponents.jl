@@ -438,6 +438,40 @@ function decomposecontraction(ex)
 end
 
 
+_splitscalars!(t, s, ex::Number) = push!(s, ex)
+_splitscalars!(t, s, ex::Symbol) = push!(s, ex)
+function _splitscalars!(t, s, ex::Expr)
+    if istensor(ex)
+        push!(t, ex)
+        return
+    elseif isscalarexpr(ex)
+        push!(s, ex)
+        return
+    end
+    @assert isgeneraltensor(ex) ex
+    @assert ex.head === :call
+    op = ex.args[1]
+    if op === :/
+        push!(s, :(1/$(ex.args[3])))
+        _splitscalars!(t, s, ex.args[2])
+    elseif op === :*
+        println("SERS")
+        for a in ex.args[2:end]
+            _splitscalars!(t, s, a)
+        end
+    else
+        error("Unhandled case $ex")
+    end
+end
+function splitscalars(ex)
+    t, s = Any[], Any[]
+    _splitscalars!(t, s, ex)
+    symsort!(s)
+    return t, s
+end
+
+
+
 # variable =^= any Symbol that does not have indices
 function getscalars(ex)
     vars = Any[]

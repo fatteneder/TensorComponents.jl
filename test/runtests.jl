@@ -269,6 +269,15 @@ end
     @test TC.getscalars(:(cos(α) * A[i,j] + B[j,i] * sin(α))) == [ :α ]
     @test TC.getscalars(:((a * A[i,j] + B[i,j]) * C[j,k] * d + e * F[i])) == [ :a, :d, :e ]
 
+    @test TC.splitscalars(:(a)) == ([], [:a])
+    @test TC.splitscalars(:(a/b)) == ([], [:(a/b)])
+    @test TC.splitscalars(:((a+c)/b)) == ([], [:((a+c)/b)])
+    @test TC.splitscalars(:((a/b+c))) == ([], [:(a/b+c)])
+    @test TC.splitscalars(:(a * A[i])) == ([:(A[i])], [:a])
+    @test TC.splitscalars(:(a * A[i] * b)) == ([:(A[i])], [:a, :(b)])
+    @test TC.splitscalars(:(a * A[i] / b)) == ([:(A[i])], [:a, :(1/b)])
+    @test TC.splitscalars(:(a * A[i] / b * c)) == ([:(A[i])], [:a, :c, :(1/b)])
+
     @test TC.decomposecontraction(:(A[i,i])) == ([:(A[i,i])], [])
     @test TC.decomposecontraction(:(A[i,j] * B[k,l])) == ([], [])
     @test TC.decomposecontraction(:(a * A[i,j] * B[i,j])) == ([:(A[i,j]), :(B[i,j])], [:a])
