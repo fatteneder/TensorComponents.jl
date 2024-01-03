@@ -270,15 +270,6 @@ end
     @test TC.getscalars(:(cos(α) * A[i,j] + B[j,i] * sin(α))) == [ :α ]
     @test TC.getscalars(:((a * A[i,j] + B[i,j]) * C[j,k] * d + e * F[i])) == [ :a, :d, :e ]
 
-    @test TC.splitscalars(:(a)) == ([], [:a])
-    @test TC.splitscalars(:(a/b)) == ([], [:(a/b)])
-    @test TC.splitscalars(:((a+c)/b)) == ([], [:((a+c)/b)])
-    @test TC.splitscalars(:((a/b+c))) == ([], [:(a/b+c)])
-    @test TC.splitscalars(:(a * A[i])) == ([:(A[i])], [:a])
-    @test TC.splitscalars(:(a * A[i] * b)) == ([:(A[i])], [:a, :(b)])
-    @test TC.splitscalars(:(a * A[i] / b)) == ([:(A[i])], [:a, :(1/b)])
-    @test TC.splitscalars(:(a * A[i] / b * c)) == ([:(A[i])], [:a, :c, :(1/b)])
-
     @test TC.decomposecontraction(:(A[i,i])) == ([:(A[i,i])], [])
     @test TC.decomposecontraction(:(A[i,j] * B[k,l])) == ([], [])
     @test TC.decomposecontraction(:(a * A[i,j] * B[i,j])) == ([:(A[i,j]), :(B[i,j])], [:a])
@@ -294,6 +285,18 @@ end
     @test TC.decomposecontraction(:(A[i,j] * B[j] - C[i,j] * D[j])) == ([], [])
     @test TC.decomposecontraction(:((a + b)^c * A[i,j] * B[x] - C[y,z] * D[j] / x * y^2)) == ([], [])
     @test TC.decomposecontraction(:(A[i,j] * (b * B[k] - c * C[k]) / d)) == ([], [])
+    @test TC.splitprod(:(a)) == (nothing, [:a])
+    @test TC.splitprod(:(a/b)) == (nothing, [:(a/b)])
+    @test TC.splitprod(:((a+c)/b)) == (nothing, [:((a+c)/b)])
+    @test TC.splitprod(:((a/b+c))) == (nothing, [:(a/b+c)])
+    @test TC.splitprod(:(a * A[i])) == (:(A[i]), [:a])
+    @test TC.splitprod(:(a * A[i] * b)) == (:(A[i]), [:a, :(b)])
+    @test TC.splitprod(:(a * A[i] / b)) == (:(A[i]), [:a, :(1/b)])
+    @test TC.splitprod(:(a * A[i] / b * c)) == (:(A[i]), [:a, :c, :(1/b)])
+    @test TC.splitprod(:(a * A[i] * B[j] / b * c)) == (:(A[i] * B[j]), [:a, :c, :(1/b)])
+    @test TC.splitprod(:(A[i] * B[j])) == (:(A[i] * B[j]), [])
+    @test TC.splitprod(:(A[i] * A[j])) == (:(A[i] * A[j]), [])
+    @test TC.splitprod(:(A[j] * A[j])) == (:(A[j] * A[j]), [])
 
 
     # ### invalid use

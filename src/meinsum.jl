@@ -438,36 +438,46 @@ function decomposecontraction(ex)
 end
 
 
-_splitscalars!(t, s, ex::Number) = push!(s, ex)
-_splitscalars!(t, s, ex::Symbol) = push!(s, ex)
-function _splitscalars!(t, s, ex::Expr)
+_splitprod!(t, s, ex::Number) = push!(s, ex)
+_splitprod!(t, s, ex::Symbol) = push!(s, ex)
+function _splitprod!(t, s, ex::Expr)
     if istensor(ex)
         push!(t, ex)
         return
+    elseif istensorprod(ex)
+        @assert ex.head === :call
+        op = ex.args[1]
+        if op === :/
+            push!(s, :(1/$(ex.args[3])))
+            _splitprod!(t, s, ex.args[2])
+        elseif op === :*
+            for a in ex.args[2:end]
+                _splitprod!(t, s, a)
+            end
+        else
+            error("Unhandled case $ex")
+        end
     elseif isscalarexpr(ex)
         push!(s, ex)
         return
-    end
-    @assert isgeneraltensor(ex) ex
-    @assert ex.head === :call
-    op = ex.args[1]
-    if op === :/
-        push!(s, :(1/$(ex.args[3])))
-        _splitscalars!(t, s, ex.args[2])
-    elseif op === :*
-        println("SERS")
-        for a in ex.args[2:end]
-            _splitscalars!(t, s, a)
-        end
     else
         error("Unhandled case $ex")
     end
 end
-function splitscalars(ex)
+# split scalars coefficients (but not scalar contractions) from a tensor product
+function splitprod(ex)
     t, s = Any[], Any[]
-    _splitscalars!(t, s, ex)
+    _splitprod!(t, s, ex)
     symsort!(s)
-    return t, s
+    return if length(t) == 0
+        nothing, s
+    elseif length(t) == 1
+        t[1], s
+    else
+        tp = Expr(:call, :*)
+        append!(tp.args, t)
+        tp, s
+    end
 end
 
 
