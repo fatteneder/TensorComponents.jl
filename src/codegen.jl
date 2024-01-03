@@ -15,11 +15,8 @@ function nextind_bychars(str, start, nchars)
 end
 
 
-breakstring(str::AbstractString, breakchar::Char=','; breakafter=80) =
-    breakstring(str, [breakchar], breakafter=breakafter)
-function breakstring(str::AbstractString, breakchars::Vector{Char}=[',']; breakafter=80)
+function breakstring(str::AbstractString; breakchars::Vector{Char}=[','], breakafter=80)
 
-    display(str)
     length(str) <= breakafter && return str
     buf = IOBuffer()
     start = nextind(str,0)
@@ -32,17 +29,20 @@ function breakstring(str::AbstractString, breakchars::Vector{Char}=[',']; breaka
         if isnothing(stop)
             stop = ncodeunits(str)
         end
+        # @show start, stop, view(str,start:stop)
         println(buf, view(str,start:stop))
         # move on
         start = nextind(str,stop)
         skipspace = match(r"^(\s*)", view(str, start:length(str)))
         if !isnothing(skipspace)
+            # @show start, skipspace[1]
             start += length(skipspace[1])
         end
         stop = min(nextind_bychars(str, start, breakafter),ncodeunits(str))
+        # @show start, stop
     end
 
-    return String(take!(buf))
+    return rstrip(String(take!(buf)),'\n')
 end
 
 
@@ -56,8 +56,8 @@ function generate_code(codegen_filename, comps, outputs; kwargs...)
 
     str_ins  = join(ins,',')
     str_outs = join(outs,',')
-    str_ins = breakstring(str_ins,',')
-    str_outs = breakstring(str_outs,',')
+    str_ins = breakstring(str_ins,breakchars=[','])
+    str_outs = breakstring(str_outs,breakchars=[','])
 
     str_detected  = "detected input variables:\n$str_ins"
     str_requested = "requested output variables:\n$str_outs"

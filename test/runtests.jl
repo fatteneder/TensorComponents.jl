@@ -632,3 +632,36 @@ end
     @test eval_got == eval_expected
 
 end
+
+
+@testset "codegen" begin
+
+    input = "a1,a2,a3,a4,a5"
+
+    output = TC.breakstring(input, breakchars=[','], breakafter=4)
+    expected = "a1,a2,\na3,a4,\na5"
+    @test output == expected
+
+    output = TC.breakstring(input, breakchars=[','], breakafter=5)
+    expected = "a1,a2,\na3,a4,a5"
+    @test output == expected
+
+    output = TC.breakstring(input, breakchars=[',',';',':'], breakafter=4)
+    expected = "a1,a2,\na3,a4,\na5"
+    @test output == expected
+
+    output = TC.breakstring(input, breakchars=[';',':'], breakafter=4)
+    expected = "a1,a2,a3,a4,a5"
+    @test output == expected
+
+    # input = "a1, a2, a3, a4, a5"
+
+    # output = TC.breakstring(input, breakchars=[','], breakafter=6)
+    # expected = "a1, a2,\na3, a4,\na5"
+    # @test output == expected
+    #
+    # output = TC.breakstring(input, breakchars=[','], breakafter=7)
+    # expected = "a1, a2, a3,\na4, a5"
+    # @test output == expected
+
+end
