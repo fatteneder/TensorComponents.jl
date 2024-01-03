@@ -160,6 +160,26 @@ end
     @test TC.istensorprod(:(A[i] * (2 * B[j] + C[k]) / b)) == false
     @test TC.istensorprod(:(A[i] * (2 * B[j] + C[j]) / b)) == true
 
+    @test TC.istensorsum(:(a)) == false
+    @test TC.istensorsum(:(A[i])) == true
+    @test TC.istensorsum(:(a + A[i])) == false
+    @test TC.istensorsum(:(A[i] + A[i])) == true
+    @test TC.istensorsum(:(A[i] + B[i])) == true
+    @test TC.istensorsum(:(A[i] + B[i])) == true
+    @test TC.istensorsum(:(A[i] * B[i])) == true
+    @test TC.istensorsum(:(A[i] * B[j] + C[i,j])) == true
+    @test TC.istensorsum(:(A[i] * B[j] + A[j] * B[i])) == true
+    @test TC.istensorsum(:(A[i] * B[j] / d)) == true
+    @test TC.istensorsum(:(A[i] / d * B[j])) == true
+    @test TC.istensorsum(:(A[i] * B[j] + C[k])) == false
+    @test TC.istensorsum(:(A[i] * (B[j] + C[k]))) == false
+    @test TC.istensorsum(:(A[i] * (B[j] + C[k]) / b)) == false
+    @test TC.istensorsum(:(A[i] * (2 * B[j] + C[k]) / b)) == false
+    @test TC.istensorsum(:(A[i] * B[i] + C[i])) == false
+    @test TC.istensorsum(:(A[i] * (B[i] + C[i]))) == true
+    @test TC.istensorsum(:(A[i] * (B[i] + C[i]) / b)) == true
+    @test TC.istensorsum(:(A[i] * (2 * B[i] + C[i]) / b)) == true
+
     @test TC.iscontraction(:(a)) == false
     @test TC.iscontraction(:(A[i,j])) == false
     @test TC.iscontraction(:(A[i,j] + a)) == false

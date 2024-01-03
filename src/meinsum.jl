@@ -593,6 +593,18 @@ end
 istensorprod(ex) = false
 
 
+function istensorsum(ex::Expr)
+    istensorprod(ex) && return true
+    istensorexpr(ex) || return false
+    ex.head === :call || return false
+    ex.args[1] in (:+, :-) || return false
+    all(a -> isgeneraltensor(a) || istensorprod(a), ex.args[2:end]) || return false
+    is = getindices.(ex.args[2:end])
+    allequal(is)
+end
+istensorsum(ex) = false
+
+
 # any expression which involves (general)tensors combined with any of the +,-,*,/ operators
 function istensorexpr(ex::Expr)
     isgeneraltensor(ex) && return true
