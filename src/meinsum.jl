@@ -574,7 +574,7 @@ isscalarexpr(ex::Number) = true
 
 
 function iscontraction(ex::Expr)
-    (istensor(ex) || istensorprod(ex)) && !isempty(getcontractedindices(ex)) && return true
+    istensorprod(ex) && !isempty(getcontractedindices(ex)) && return true
     isgeneraltensor(ex) && return any(a -> iscontraction(a), ex.args[2:end])
     !istensorexpr(ex) && return false
     all(a -> isscalarexpr(a), ex.args[2:end]) && return true
