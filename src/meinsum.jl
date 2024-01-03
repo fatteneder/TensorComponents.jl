@@ -578,7 +578,17 @@ function istensorprod(ex::Expr)
     !istensorexpr(ex) && return false
     ex.head !== :call && return false
     ex.args[1] === :/ && any(a -> istensorprod(a), ex.args[2:end]) && return true
-    ex.args[1] === :*
+    ex.args[1] === :* || return false
+    all(ex.args[2:end]) do a
+        isscalarexpr(a) && return true
+        istensorprod(a) && return true
+        a isa Expr || return false
+        a.head === :call || return false
+        a.args[1] in (:+,:-) || return false
+        all(ai -> istensorprod(ai), a.args[2:end]) || return false
+        is = getindices.(a.args[2:end])
+        allequal(is)
+    end
 end
 istensorprod(ex) = false
 

@@ -153,8 +153,12 @@ end
     @test TC.istensorprod(:(A[i] * B[j] / d)) == true
     @test TC.istensorprod(:(A[i] / d * B[j])) == true
     @test TC.istensorprod(:(A[i] * B[j] + C[k])) == false
-    @test TC.istensorprod(:(A[i] * (B[j] + C[k]))) == true
-    @test TC.istensorprod(:(A[i] * (B[j] + C[k]) / b)) == true
+    @test TC.istensorprod(:(A[i] * (B[j] + C[k]))) == false
+    @test TC.istensorprod(:(A[i] * (B[j] + C[j]))) == true
+    @test TC.istensorprod(:(A[i] * (B[j] + C[k]) / b)) == false
+    @test TC.istensorprod(:(A[i] * (B[j] + C[j]) / b)) == true
+    @test TC.istensorprod(:(A[i] * (2 * B[j] + C[k]) / b)) == false
+    @test TC.istensorprod(:(A[i] * (2 * B[j] + C[j]) / b)) == true
 
     @test TC.iscontraction(:(a)) == false
     @test TC.iscontraction(:(A[i,j])) == false
