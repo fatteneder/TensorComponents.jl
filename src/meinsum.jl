@@ -512,10 +512,10 @@ function isgeneraltensor(ex::Expr)
     istensor(ex) && return true
     ex.head === :call || return false
     length(ex.args) >= 3 && ex.args[1] == :* &&
-        count(a -> istensor(a), ex.args[2:end]) == 1 &&
+        count(a -> isgeneraltensor(a), ex.args[2:end]) == 1 &&
         count(a -> isscalarexpr(a), ex.args[2:end]) == length(ex.args)-2 && return true
-    length(ex.args) == 3 && ex.args[1] == :/ && istensor(ex.args[2]) &&
-        !istensor(ex.args[3]) && return true
+    length(ex.args) == 3 && ex.args[1] == :/ && isgeneraltensor(ex.args[2]) &&
+        !isgeneraltensor(ex.args[3]) && return true
     return false
 end
 isgeneraltensor(ex) = false

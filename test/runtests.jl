@@ -111,6 +111,8 @@ end
     @test TC.isgeneraltensor(:(a * A[i,j])) == true
     @test TC.isgeneraltensor(:(a / A[i,j])) == false
     @test TC.isgeneraltensor(:(A[i,j] / b)) == true
+    @test TC.isgeneraltensor(:(a * A[i,j] / b)) == true
+    @test TC.isgeneraltensor(:((a * A[i,j] / b) * c)) == true
     @test TC.isgeneraltensor(:(a \ A[i,j])) == false
     @test TC.isgeneraltensor(:(A[i,j] \ b)) == false
     @test TC.isgeneraltensor(:(a / b * A[i,j])) == true
