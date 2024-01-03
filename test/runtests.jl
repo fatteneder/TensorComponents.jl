@@ -453,13 +453,23 @@ end
     @test TC.istensorexpr(:((D[k] * D[k] + b) * C[i,j])) == true
     @test TC.istensorexpr(:(T[a,b] * (dg[k,a,b] - Γ[d,a,b] * g[d,k]))) == true
 
+    @test TC.istensorprod(:(a)) == false
+    @test TC.istensorprod(:(A[i])) == false
+    @test TC.istensorprod(:(A[i] * B[i])) == true
+    @test TC.istensorprod(:(A[i] * B[j])) == true
+    @test TC.istensorprod(:(A[i] * B[j] / d)) == true
+    @test TC.istensorprod(:(A[i] / d * B[j])) == true
+    @test TC.istensorprod(:(A[i] * B[j] + C[k])) == false
+    @test TC.istensorprod(:(A[i] * (B[j] + C[k]))) == true
+    @test TC.istensorprod(:(A[i] * (B[j] + C[k]) / b)) == true
+
     @test TC.iscontraction(:(a)) == false
     @test TC.iscontraction(:(A[i,j])) == false
     @test TC.iscontraction(:(A[i,j] + a)) == false
     @test TC.iscontraction(:(a * A[i,j])) == false
     @test TC.iscontraction(:(a / A[i,j])) == false
     @test TC.iscontraction(:(A[i,j] / b)) == false
-    @test TC.iscontraction(:(C[i,j] * D[j] / x)) == false # because there is a prefactor that could be pulled out
+    @test TC.iscontraction(:(C[i,j] * D[j] / x)) == true
     @test TC.iscontraction(:(a / b * A[i,j])) == false
     @test TC.iscontraction(:(A[i,j] * B[k])) == false
     @test TC.iscontraction(:(A[i,j] + B[k])) == false
@@ -470,6 +480,9 @@ end
     @test TC.iscontraction(:(A[i,j] * B[j,i])) == true
     @test TC.iscontraction(:(A[i,i])) == true
     @test TC.iscontraction(:((a+b)^c * A[i,i])) == true
+    @test TC.iscontraction(:(A[i] * (2 * B[i] - C[i]))) == true
+    @test TC.iscontraction(:(A[i,j] * B[j])) == true
+    @test TC.iscontraction(:(A[i,j] * B[j] + C[i])) == false
 
     @test TC.getallindices(:(A[i,j])) == [:i,:j]
     @test TC.getallindices(:(A[i,j] * B[k,l])) == [:i,:j,:k,:l]
