@@ -419,7 +419,6 @@ _splitprod!(t, s, ex::Symbol) = push!(s, ex)
 function _splitprod!(t, s, ex::Expr)
     if istensor(ex)
         push!(t, ex)
-        return
     elseif istensorprod(ex)
         @assert ex.head === :call
         op = ex.args[1]
@@ -433,15 +432,19 @@ function _splitprod!(t, s, ex::Expr)
         else
             error("Unhandled case $ex")
         end
+    elseif istensorsum(ex)
+        push!(t, ex)
     elseif isscalarexpr(ex)
         push!(s, ex)
-        return
     else
         error("Unhandled case $ex")
     end
 end
 # split scalars coefficients (but not scalar contractions) from a tensor product
 function splitprod(ex)
+    if !isscalarexpr(ex) && !istensorprod(ex)
+        error("this is not a well-formed tensor product: $ex")
+    end
     t, s = Any[], Any[]
     _splitprod!(t, s, ex)
     symsort!(s)

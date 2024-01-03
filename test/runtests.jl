@@ -306,6 +306,10 @@ end
     @test TC.splitprod(:(A[i] * B[j])) == (:(A[i] * B[j]), [])
     @test TC.splitprod(:(A[i] * A[j])) == (:(A[i] * A[j]), [])
     @test TC.splitprod(:(A[j] * A[j])) == (:(A[j] * A[j]), [])
+    @test TC.splitprod(:(A[i,j] * (b * B[k] - c * C[k]) / d)) == (:(A[i,j] * (b * B[k] - c * C[k])), [:(1/d)])
+    @test_throws "this is not a well-formed tensor product" begin
+        TC.splitprod(:((a + b)^c * A[i,j] * B[x] - C[y,z] * D[j] / x * y^2))
+    end
 
     # ### invalid use
     # # invalid index pattern
