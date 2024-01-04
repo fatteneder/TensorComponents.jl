@@ -10,4 +10,4 @@ const TC = TensorComponents
 
 
 include("unittests.jl")
-# include("examples.jl")
+include("examples.jl")
