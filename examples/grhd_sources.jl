@@ -1,6 +1,5 @@
 using TensorComponents
 
-
 # comps = @macroexpand1 @components begin
 # comps = @macroexpand @components begin
 # comps = @components begin
@@ -25,13 +24,14 @@ using TensorComponents
 # comps = @macroexpand @components begin
 comps = @components begin
     @index i, j, k, l   = 3
+    @index μ, ν, λ = 4
     @symmetry hΓ[k,i,j] = hΓ[k,j,i]
     @symmetry K[i,j]    = K[j,i]
     @symmetry Tuu[i,j]  = Tuu[j,i]
     @symmetry ∂γ[i,j,k] = ∂γ[i,k,j]
-    @symmetry g[i,j]    = g[j,i]
     @symmetry γ[i,j]    = γ[j,i]
-    Tud[i,k] = Tuu[i,j] * g[j,k]
+    @symmetry g[μ,ν]    = g[ν,μ]
+    Tud[μ,ν] = Tuu[μ,λ] * g[λ,ν]
     s_S[i] = -1 * Tuu[1,1] * α * ∂α[i] + Tud[1,k] * (∂β[i,k] + hΓ[k,i,j] * β[j]) + 1/2 * ( Tuu[1,1] * β[j] * β[k] + 2 * Tuu[1,j] * β[k] + Tuu[j,k] ) * (∂γ[i,j,k] - 2*hΓ[l,i,j]*γ[l,k])
     s_tau  = Tuu[1,1] * (β[i]*β[j]*K[i,j] - β[i]*∂α[i]) + Tuu[1,i] * (2*β[j]*K[i,j] - ∂α[i] ) + Tuu[i,j]*K[i,j]
 end
