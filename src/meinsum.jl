@@ -175,23 +175,21 @@ function meinsum(expr)
     # last stack element always computes the initial lhs
     _, tmpexpr = pop!(computestack)
     tmpexpr.head = :(+=)
-    # openidxstack maintains a list of indices over which summation should occur exactly once
-    openidxstack = getindices(getlhs(tmpexpr))
+    lhsopenidxs = getindices(getlhs(tmpexpr)) # summation over these should occur exactly once
     init_tmpvars = Any[]
     thebody = Expr(:block, tmpexpr)
-    theloop = if length(openidxstack) == 0
+    theloop = if length(lhsopenidxs) == 0
         thebody
     else
-        Expr(:for, Expr(:block, [ :($i = $(allidx_dict[i])) for i in openidxstack ]...), thebody)
+        Expr(:for, Expr(:block, [ :($i = $(allidx_dict[i])) for i in lhsopenidxs ]...), thebody)
     end
     parentloop = thebody
     for (tmplhs, tmprhs) in reverse(computestack)
 
         openidxs = getindices(tmplhs)
-        newopenidxs = filter(i -> i ∉ openidxstack, openidxs)
-        append!(openidxstack, newopenidxs)
+        cansum_openidxs = filter(i -> i ∉ lhsopenidxs, openidxs)
         conidxs = getcontractedindices(tmprhs)
-        loopidxs = vcat(conidxs, filter(i -> i ∉ conidxs, newopenidxs))
+        loopidxs = vcat(conidxs, filter(i -> i ∉ conidxs, cansum_openidxs))
         # loop = Expr(:block)
         # if !isempty(openidxs)
         #     lengths = [ :(length(i)) for i in openidxs ]
