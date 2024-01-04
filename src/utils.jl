@@ -194,6 +194,8 @@ function _parse_eq(str)
 end
 function parse_eqs(filename::AbstractString)
     eqs = readlines(filename)
-    filter!(!isempty, eqs)
+    filter!(eqs) do line
+        !startswith(line,"#") && !isempty(line)
+    end
     return _parse_eq.(eqs)
 end
