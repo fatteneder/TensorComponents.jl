@@ -184,3 +184,19 @@ function cofactor(A::AbstractMatrix)
 end
 adjugate(A::AbstractMatrix) = transpose(cofactor(A))
 inverse(A::AbstractMatrix) = det(A) * adjugate(A)
+
+
+function _parse_eq(str)
+    ex = Meta.parse(str)
+    ex = MacroTools.prewalk(rmlines, ex)
+    lhs, rhs = getlhs(ex), getrhs(ex)
+    # lsyms, rsyms = getscalars(lhs), getscalars(rhs)
+    # filter!(s -> s isa Symbol, lsyms)
+    # filter!(s -> s isa Symbol, rsyms)
+    # ex, lsyms, rsyms
+    lhs, rhs
+end
+function parse_eqs(filename::AbstractString)
+    eqs = readlines(filename)
+    return _parse_eq.(eqs)
+end
