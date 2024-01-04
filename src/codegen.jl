@@ -63,8 +63,8 @@ function generate_code(func_name::AbstractString, comps::AbstractVector, outputs
 
     str_ins  = join(ins,',')
     str_outs = join(outs,',')
-    str_ins = breakstring(str_ins,breakchars=[','])
-    str_outs = breakstring(str_outs,breakchars=[','])
+    # str_ins = breakstring(str_ins,breakchars=[','])
+    # str_outs = breakstring(str_outs,breakchars=[','])
 
     str_detected  = "detected input variables:\n$str_ins"
     str_requested = "requested output variables:\n$str_outs"
