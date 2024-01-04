@@ -237,7 +237,8 @@ function parse_heads_idxpairs_equations(eqs)
         end
 
         rhs_heads_idxs = if istensorexpr(rhs)
-            heads_idxs = decomposetensor.(gettensors(rhs))
+            heads_idxs = Tuple{Union{Expr,Symbol,Number},Vector{Any}}[]
+            append!(heads_idxs, decomposetensor.(gettensors(rhs)))
             scalars = getscalars(rhs)
             append!(heads_idxs, (s,[]) for s in scalars)
             heads_idxs
@@ -249,6 +250,8 @@ function parse_heads_idxpairs_equations(eqs)
         end
 
         for heads_idxs in (lhs_heads_idxs, rhs_heads_idxs), (head, idxs) in heads_idxs
+
+            head isa Symbol || continue
 
             # check if we already encountered this tensor
             # and verify that its rank did not change
