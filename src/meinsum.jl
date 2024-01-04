@@ -486,6 +486,29 @@ function _getscalars!(vars, ex::Expr)
     return
 end
 
+# get any symbol that is not an operation or function call
+function getsymbols(ex)
+    vars = Symbol[]
+    _getsymbols!(vars, ex)
+    unique!(vars)
+    sort!(vars)
+    return vars
+end
+_getsymbols!(vars, s::Symbol) = push!(vars, s)
+_getsymbols!(vars, s) = nothing
+function _getsymbols!(vars, ex::Expr)
+    if ex.head === :ref # tensorhead
+        push!(vars, ex.args[1])
+    elseif ex.head === :call
+        foreach(ex.args[2:end]) do a
+            _getsymbols!(vars, a)
+        end
+    else
+        error("Failed to extract variables from '$ex'")
+    end
+    return
+end
+
 
 
 

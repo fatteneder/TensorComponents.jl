@@ -283,6 +283,19 @@ end
     @test TC.getscalars(:(cos(α) * A[i,j] + B[j,i] * sin(α))) == [ :α ]
     @test TC.getscalars(:((a * A[i,j] + B[i,j]) * C[j,k] * d + e * F[i])) == [ :a, :d, :e ]
 
+    @test TC.getsymbols(:(a)) == [ :a ]
+    @test TC.getsymbols(:(1/a)) == [ :a ]
+    @test TC.getsymbols(:(b/a)) == [ :a, :b ]
+    @test TC.getsymbols(:(b/a + c)) == [ :a, :b, :c ]
+    @test TC.getsymbols(:((b+c)/c)) == [ :b, :c ]
+    @test TC.getsymbols(:(a * A[i,j])) == [ :A, :a ]
+    @test TC.getsymbols(:(2 * a * A[i,j])) == [ :A, :a ]
+    @test TC.getsymbols(:(a * 2 * A[i,j])) == [ :A, :a ]
+    @test TC.getsymbols(:(x * A[i,j] + B[j,i] * y)) == [ :A, :B, :x, :y ]
+    @test TC.getsymbols(:((x^2 + y)^2 * A[i,j] + B[j,i] * y)) == [ :A, :B, :x, :y ]
+    @test TC.getsymbols(:(cos(α) * A[i,j] + B[j,i] * sin(α))) == [ :A, :B, :α ]
+    @test TC.getsymbols(:((a * A[i,j] + B[i,j]) * C[j,k] * d + e * F[i])) == [ :A, :B, :C, :F, :a, :d, :e ]
+
     @test TC.splitprod(:(a)) == (nothing, [:a])
     @test TC.splitprod(:(a/b)) == (nothing, [:(a/b)])
     @test TC.splitprod(:((a+c)/b)) == (nothing, [:((a+c)/b)])
