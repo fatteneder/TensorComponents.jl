@@ -55,9 +55,8 @@ function breakstring(str::AbstractString; breakchars::Vector{Char}=[','], breaka
 end
 
 
-generate_code(func_name::AbstractString, outputs::AbstractVector; kwargs...) =
-    generate_code(func_name, outputs, []; kwargs...)
-function generate_code(func_name::AbstractString, comps::AbstractVector, outputs::AbstractVector; kwargs...)
+function generate_code(func_name::AbstractString, comps::AbstractVector, outputs::AbstractVector;
+                       kwargs...)
 
     src_filename = "$func_name.codegen"
     code, ins, outs, libdeps = _generate_code(func_name, comps, outputs; kwargs...)
@@ -127,8 +126,7 @@ function _generate_code(func_name, comps, outputs; with_LV::Bool=false)
     deps, ideps = determine_dependents_independents(eqs)
 
     if isempty(outputs)
-        @info "no dependent variables provided, using all available"
-        outputs = deps
+        throw(ArgumentError("no dependent variables provided"))
     end
 
     computed_outputs = []
