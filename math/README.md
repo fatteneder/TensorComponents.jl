@@ -4,6 +4,6 @@
 ```
 $ virtualenv env
 $ source env/bin/activate
-$ (env) pip3 install sympy jupyter-lab
+$ (env) pip3 install sympy jupyter-lab jupytext
 $ (env) jupyter-lab
 ```
