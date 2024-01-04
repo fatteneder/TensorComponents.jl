@@ -679,6 +679,29 @@ end
 end
 
 
+@testset "@components equations -- real examples" begin
+    expected = :( (s_tau,
+                   K11*Tuu11 + 2*K12*Tuu12 + 2*K13*Tuu13 + K22*Tuu22 + 2*K23*Tuu23 + K33*Tuu33 +
+                   Tuu11*(-∂α1 + 2*(K11*β1 + K12*β2 + K13*β3)) + Tuu11*(K11*β1^2 + K22*β2^2 +
+                   K33*β3^2 + 2*K12*β2*β1 + 2*K13*β3*β1 + 2*K23*β3*β2 - (β1*∂α1 + β2*∂α2 +
+                   β3*∂α3)) + Tuu12*(-∂α2 + 2*(K12*β1 + K22*β2 + K23*β3)) +
+                   Tuu13*(-∂α3 + 2*(K13*β1 + K23*β2 + K33*β3))) )
+    fulloutput = @components begin
+        @index i, j, k, l   = 3
+        @symmetry hΓ[k,i,j] = hΓ[k,j,i]
+        @symmetry K[i,j]    = K[j,i]
+        @symmetry Tuu[i,j]  = Tuu[j,i]
+        @symmetry g[i,j]    = g[j,i]
+        Tud[i,k] = Tuu[i,j] * g[j,k]
+        # grhd source term for tau equation, cf. arXiv:1104.4751v3, eq 26
+        s_tau  = Tuu[1,1] * (β[i]*β[j]*K[i,j] - β[i]*∂α[i]) + Tuu[1,i] * (2*β[j]*K[i,j] - ∂α[i] ) + Tuu[i,j]*K[i,j]
+    end
+    # only compare final result
+    output = fulloutput[end] |> string |> Meta.parse
+    @test output == expected
+end
+
+
 @testset "codegen" begin
 
     input = "a1,a2,a3,a4,a5"
