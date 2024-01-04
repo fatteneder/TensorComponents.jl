@@ -21,15 +21,19 @@ using TensorComponents
 # @generate_code(comps, outs)
 # @test_code(comps, outs)
 
+# comps = @macroexpand1 @components begin
+# comps = @macroexpand @components begin
 comps = @components begin
     @index i, j, k, l   = 3
     @symmetry hΓ[k,i,j] = hΓ[k,j,i]
     @symmetry K[i,j]    = K[j,i]
     @symmetry Tuu[i,j]  = Tuu[j,i]
+    @symmetry ∂γ[i,j,k] = ∂γ[i,k,j]
     @symmetry g[i,j]    = g[j,i]
+    @symmetry γ[i,j]    = γ[j,i]
     Tud[i,k] = Tuu[i,j] * g[j,k]
-    s_S[i] = -1 * Tuu[1,1] * α * ∂α[i] + Tud[1,k] * (∂β[i,k] + hΓ[k,i,j] * β[j]) + 1/2 * ( Tuu[1,1] * β[j] * β[k] + 2 * Tuu[1,j] * β[k] + Tuu[j,k] ) * (∂γ[i,j,k])# - 2*hΓ[l,i,j]*γ[l,k] )
-    s_tau  = Tuu[1,1] * (β[i]*β[j]*K[i,j] - β[i]*∂α[i]) + Tuu[1,i]*(2*β[j]*K[i,j] - ∂α[i]) + Tuu[i,j]*K[i,j]
+    s_S[i] = -1 * Tuu[1,1] * α * ∂α[i] + Tud[1,k] * (∂β[i,k] + hΓ[k,i,j] * β[j]) + 1/2 * ( Tuu[1,1] * β[j] * β[k] + 2 * Tuu[1,j] * β[k] + Tuu[j,k] ) * (∂γ[i,j,k] - 2*hΓ[l,i,j]*γ[l,k])
+    s_tau  = Tuu[1,1] * (β[i]*β[j]*K[i,j] - β[i]*∂α[i]) + Tuu[1,i] * (2*β[j]*K[i,j] - ∂α[i] ) + Tuu[i,j]*K[i,j]
 end
 
 outs = [ :s_S1, :s_S2, :s_S3, :s_tau ]
