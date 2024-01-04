@@ -1,6 +1,15 @@
 macro generate_code(comps, outputs, kwargs...)
-    return esc(:(TensorComponents.generate_code($(string(__source__.file)),
-                                                $comps, $outputs; $kwargs...)))
+    filename = string(__source__.file)
+    rest, ext = splitext(filename)
+    func_name = basename(rest)
+    src_filename = length(ext) == 0 ? "$rest.codegen" : "$rest.codegen$ext"
+    return esc(quote
+        @info "Exporting to '$($(src_filename))' ..."
+        code = TensorComponents.generate_code($func_name, $comps, $outputs; $kwargs...)
+        open($src_filename, "w") do file
+            println(file, code)
+        end
+    end)
 end
 
 
@@ -46,12 +55,9 @@ function breakstring(str::AbstractString; breakchars::Vector{Char}=[','], breaka
 end
 
 
-function generate_code(codegen_filename, comps, outputs; kwargs...)
-    rest, ext = splitext(codegen_filename)
-    func_name = basename(rest)
-    src_filename = length(ext) == 0 ? "$rest.codegen" : "$rest.codegen$ext"
+function generate_code(func_name::AbstractString, comps::AbstractVector, outputs::AbstractVector; kwargs...)
 
-    @info "Exporting to '$src_filename' ..."
+    src_filename = "$func_name.codegen"
     code, ins, outs, libdeps = _generate_code(func_name, comps, outputs; kwargs...)
 
     str_ins  = join(ins,',')
@@ -79,31 +85,30 @@ function generate_code(codegen_filename, comps, outputs; kwargs...)
     longest_val = ndigits(total)
     fmt = Printf.Format("# %$(longest_key)s = %$(longest_val)d ... %5.1f %%\n")
 
-    open(src_filename,"w") do file
-        n = now()
-        println(file,
-                """
-                # Generated on $(Date(n)) - $(Time(n))
-                # Operator counts""")
-        for (k,v,p) in zip(ks,vs,prcnts)
-            Printf.format(file, fmt, k, v, p)
-        end
-        sumln = Printf.format(fmt, "Σ", total, 100)
-        println(file, "# ", "="^(length(sumln)-3))
-        println(file, sumln)
-        println(file)
-        println(file, str_detected)
-        println(file)
-        println(file, str_requested)
-        println(file)
-        for dep in libdeps
-            println(file, "using $dep")
-        end
-        println(file)
-        write(file, string(code))
+    io = IOBuffer()
+    n = now()
+    println(io,
+            """
+            # Generated on $(Date(n)) - $(Time(n))
+            # Operator counts""")
+    for (k,v,p) in zip(ks,vs,prcnts)
+        Printf.format(io, fmt, k, v, p)
     end
+    sumln = Printf.format(fmt, "Σ", total, 100)
+    println(io, "# ", "="^(length(sumln)-3))
+    println(io, sumln)
+    println(io)
+    println(io, str_detected)
+    println(io)
+    println(io, str_requested)
+    println(io)
+    for dep in libdeps
+        println(io, "using $dep")
+    end
+    println(io)
+    write(io, string(code))
 
-    return src_filename
+    return String(take!(io))
 end
 
 
