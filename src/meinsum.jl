@@ -175,15 +175,23 @@ function meinsum(expr)
     # last stack element always computes the initial lhs
     _, tmpexpr = pop!(computestack)
     tmpexpr.head = :(+=)
-    conidxs = getallindices(getrhs(tmpexpr))
+    # openidxstack maintains a list of indices over which summation should occur exactly once
+    openidxstack = getindices(getlhs(tmpexpr))
     init_tmpvars = Any[]
     thebody = Expr(:block, tmpexpr)
-    theloop = Expr(:for, Expr(:block, [ :($i = $(allidx_dict[i])) for i in conidxs ]...), thebody)
+    theloop = if length(openidxstack) == 0
+        thebody
+    else
+        Expr(:for, Expr(:block, [ :($i = $(allidx_dict[i])) for i in openidxstack ]...), thebody)
+    end
     parentloop = thebody
     for (tmplhs, tmprhs) in reverse(computestack)
 
         openidxs = getindices(tmplhs)
+        newopenidxs = filter(i -> i ∉ openidxstack, openidxs)
+        append!(openidxstack, newopenidxs)
         conidxs = getcontractedindices(tmprhs)
+        loopidxs = vcat(conidxs, filter(i -> i ∉ conidxs, newopenidxs))
         # loop = Expr(:block)
         # if !isempty(openidxs)
         #     lengths = [ :(length(i)) for i in openidxs ]
@@ -192,8 +200,9 @@ function meinsum(expr)
         # push!(loop.args, Expr(:for,
         #                       Expr(:block, [ :($i = $(allidx_dict[i])) for i in conidxs ]...),
         #                       :($tmplhs += $tmprhs)) )
-        loop = Expr(:for, Expr(:block, [ :($i = $(allidx_dict[i])) for i in conidxs ]...),
-                          :($tmplhs += $tmprhs) )
+        loop = Expr(:for, Expr(:block))
+        append!(loop.args[1].args, [ :($i = $(allidx_dict[i])) for i in loopidxs ])
+        push!(loop.args, :($tmplhs += $tmprhs))
 
         if openidxs != lhs_idxs && istraced(tmprhs)
             tmplhs_head, _ = decomposetensor(tmplhs)
@@ -250,12 +259,7 @@ function make_compute_stack(expr)
     stack = Tuple{Any,Expr}[]
     istensor(expr) && iscontraction(expr) && return stack
 
-    # @info expr
-
-    # !iscontraction(expr) && return stack
     new_ex = MacroTools.postwalk(expr) do ex
-
-        # @show ex
 
         !iscontraction(ex) && return ex
 
@@ -281,9 +285,6 @@ function make_compute_stack(expr)
             push!(new_ex.args, contracted_tensor)
             new_ex
         end
-
-        # @show contracted, rest, contracted_tensor
-        # @show new_ex
 
         return new_ex
     end
