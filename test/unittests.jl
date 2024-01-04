@@ -682,11 +682,10 @@ end
     end))
 
 
-    # This should not throw
-    # comps = @components begin
-    #     @index a, b, c, d, k = 3
-    #     ss[i] = 1/2 * ( Tuu[1,1] * β[j] * β[k] ) * (∂γ[i,j,k] - 2*hΓ[l,i,j]*γ[l,k])
-    # end
+    @test_skip eval(TC.components(quote
+        @index i,j = 3
+        Tud[1,i] = Tuu[1,j] * g[j,i]
+    end))
 
 end
 
