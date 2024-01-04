@@ -182,20 +182,21 @@ end
 # Walk through equations and determine tensors which we have not been computed before
 # they are used. E.g. returns all tensors that did not appear in a lhs before they first
 # appeared in a rhs.
-function determine_dependents_independents(eqs)
+function determine_dependents_independents(eqs::AbstractVector{Expr})
+    determine_dependents_independents(zip(getlhs.(eqs),getrhs.(eqs)))
+end
+function determine_dependents_independents(lhs_rhs)
 
     deps = Symbol[]
     ideps = Symbol[]
 
-    N = length(eqs)
+    N = length(lhs_rhs)
 
     N == 0 && return deps, ideps
 
-    for eq in eqs
-        lhs, rhs = getlhs(eq), getrhs(eq)
+    for (lhs, rhs) in lhs_rhs
         !(lhs in deps) && push!(deps, lhs)
-        for s in getscalars(rhs)
-            s isa Symbol || continue
+        for s in getsymbols(rhs)
             !(s in deps) && !(s in ideps) && push!(ideps, s)
         end
     end
