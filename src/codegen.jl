@@ -65,8 +65,8 @@ function generate_code(codegen_filename, comps, outputs; kwargs...)
     @info str_requested
 
     # insert comment chars
-    str_detected = "# " * replace(str_detected, '\n' => "\n# ", count=max(count('\n',str_detected)-1,1))
-    str_requested = "# " * replace(str_requested, '\n' => "\n# ", count=max(count('\n',str_requested)-1,1))
+    str_detected = "# " * replace(str_detected, '\n' => "\n# ", count=max(count('\n',str_detected),1))
+    str_requested = "# " * replace(str_requested, '\n' => "\n# ", count=max(count('\n',str_requested),1))
 
     # gather operation counts and prepare printer
     stats = count_operations(comps)
@@ -93,6 +93,7 @@ function generate_code(codegen_filename, comps, outputs; kwargs...)
         println(file, sumln)
         println(file)
         println(file, str_detected)
+        println(file)
         println(file, str_requested)
         println(file)
         for dep in libdeps
